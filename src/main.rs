@@ -1,6 +1,5 @@
+use modman::{Download, FromCurse, Loader, Mod};
 use std::path::PathBuf;
-
-use modman::{Download, From, Loader, Mod};
 
 #[tokio::main]
 async fn main() {
@@ -14,7 +13,10 @@ async fn main() {
         .await
         .unwrap();
 
-    screenshot.download(&client, PathBuf::from("example/hi/hey/yes.jar")).await.unwrap();
+    screenshot
+        .download(&client, PathBuf::from("example/mods"))
+        .await
+        .unwrap();
 
     // println!("{:?}", screenshot);
 }
