@@ -1,11 +1,29 @@
+use std::{fs::File, io::Write, path::PathBuf};
 use async_trait::async_trait;
 use ferinth::{structures::version::DependencyType as FerinthDependency, Ferinth};
+use futures_util::StreamExt;
+use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use serde_json::Value;
 
 mod curseforge {
     pub const API_BASE: &str = "https://api.curseforge.com/v1";
     pub const API_KEY: &str = "$2a$10$MpspbkRWQ8D5FLySK2mb/.OK/fwKQ8p7wc4aGtRBKmee8RU30wGYu";
+}
+
+#[derive(Debug)]
+enum Sources {
+	Modrinth,
+	CurseForge
+}
+
+impl ToString for Sources {
+	fn to_string(&self) -> String {
+		match self {
+			Sources::CurseForge => "CurseForge",
+			Sources::Modrinth => "Modrinth"
+		}.to_string()
+	}
 }
 
 #[derive(Debug)]
@@ -53,14 +71,14 @@ pub struct Mod {
     /// A URL to download the mod
     url: String,
 
-    /// The SHA1 hash of the mod's file
-    sha1: String,
-
     dependencies: Vec<(DependencyType, String)>,
+
+	/// Where the mod is sourced from
+	source: Sources
 }
 
 #[async_trait]
-pub trait Find {
+pub trait From {
     /// Get a mod from Modrinth by ID.
     async fn from_modrinth(
         client: &Ferinth,
@@ -80,7 +98,7 @@ pub trait Find {
 }
 
 #[async_trait]
-impl Find for Mod {
+impl From for Mod {
     async fn from_modrinth(
         client: &Ferinth,
         id: &str,
@@ -99,7 +117,6 @@ impl Find for Mod {
             name: project.title,
             filename: download.filename.clone(),
             url: download.url.to_string(),
-            sha1: download.hashes.sha1.clone(),
             dependencies: latest
                 .dependencies
                 .iter()
@@ -115,6 +132,7 @@ impl Find for Mod {
                     )
                 })
                 .collect::<Vec<(DependencyType, String)>>(),
+			source: Sources::Modrinth
         })
     }
 
@@ -177,10 +195,6 @@ impl Find for Mod {
                 .to_string(),
             filename: latest["fileName"].as_str().unwrap().to_string(),
             url: latest["downloadUrl"].as_str().unwrap().to_string(),
-            sha1: latest["hashes"].as_array().unwrap()[0]["value"]
-                .as_str()
-                .unwrap()
-                .to_string(),
             dependencies: latest["dependencies"]
                 .as_array()
                 .unwrap()
@@ -197,6 +211,63 @@ impl Find for Mod {
                     )
                 })
                 .collect::<Vec<(DependencyType, String)>>(),
+			source: Sources::CurseForge
         })
+    }
+}
+
+#[async_trait]
+pub trait Download {
+    async fn download(
+        &self,
+        client: &Client,
+        directory: PathBuf
+    ) -> Result<(), Box<dyn std::error::Error>>;
+}
+
+#[async_trait]
+impl Download for Mod {
+    async fn download(
+        &self,
+        client: &Client,
+        path: PathBuf
+    ) -> Result<(), Box<dyn std::error::Error>> {
+		if path.is_file() {
+			panic!("path must point towards a folder");
+		}
+
+		// fetch the mod
+        let res = client.get(&self.url).send().await?;
+        let total_size = res.content_length().unwrap();
+
+		// set up progress bar
+        let progress = ProgressBar::new(total_size);
+
+        progress.set_style(ProgressStyle::default_bar()
+        .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")?
+        .progress_chars("#>-"));
+        progress.set_message(format!("Downloading {} from {}", self.name, self.source.to_string()));
+
+		// download chunks
+		std::fs::create_dir_all(&path)?;
+
+		let path = &path.join(&self.filename);
+
+        let mut file = File::create(path)?;
+        let mut downloaded = 0u64;
+        let mut stream = res.bytes_stream();
+
+        while let Some(item) = stream.next().await {
+            let chunk = item.unwrap();
+            file.write_all(&chunk)?;
+
+            let new = std::cmp::min(downloaded + (chunk.len() as u64), total_size);
+            downloaded = new;
+            progress.set_position(new);
+        }
+
+        progress.finish_with_message(format!("Downloaded {} from {} to {}",self.name, self.source.to_string(), path.to_str().unwrap()));
+
+        Ok(())
     }
 }
