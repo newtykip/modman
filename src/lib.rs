@@ -1,11 +1,13 @@
 mod download;
 mod enums;
+mod files;
 mod sources;
 
 pub use download::Download;
 pub use enums::Loader;
+pub use files::config::Config;
 
-use enums::{Dependency, DependencyId, DependencyType, Sources};
+use enums::{Dependency, Sources};
 
 type GameVersions = Vec<&'static str>;
 type Error = Box<dyn std::error::Error>;

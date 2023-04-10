@@ -76,7 +76,7 @@ impl Mod {
     ) -> Result<Option<CurseMod>, Error> {
         // todo: implement search into furse - https://github.com/gorilla-devs/furse/issues/5
         let furse = furse.unwrap_or(Furse::new(API_KEY));
-        let client = client.unwrap_or(Client::default());
+        let client = client.unwrap_or(Client::new());
 
         // find the project
         let search_results = &make_request(

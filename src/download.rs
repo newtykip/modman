@@ -24,7 +24,7 @@ impl Download for T {
 
         // fetch the mod
         let res = client
-            .unwrap_or(Client::default())
+            .unwrap_or(Client::new())
             .get(&self.data.url)
             .send()
             .await?;
