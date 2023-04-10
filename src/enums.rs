@@ -36,7 +36,7 @@ impl DependencyId {
     pub fn parse<T: FromStr>(&self) -> Result<T, <T as FromStr>::Err> {
         match self {
             DependencyId::Project(x) => x.parse::<T>(),
-            DependencyId::Version(x) => x.parse::<T>()
+            DependencyId::Version(x) => x.parse::<T>(),
         }
     }
 }

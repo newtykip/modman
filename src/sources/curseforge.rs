@@ -1,8 +1,9 @@
 use crate::{
-    enums::{DependencyType, Loader, Sources, DependencyId},
+    enums::{DependencyId, DependencyType, Loader, Sources},
     sources::SearchResult,
     Error, GameVersions, Mod,
 };
+use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use reqwest::Client;
 use serde_json::Value;
@@ -21,80 +22,24 @@ async fn make_request(client: &Client, endpoint: String) -> Result<Value, Error>
         .await?)
 }
 
-impl<'t> Mod<'t> {
-    /// Search for mods on Curseforge
-    pub async fn search_curseforge(
-        client: &Client,
-        query: &str,
-        loader: Loader,
-        game_versions: GameVersions<'t>,
-    ) -> Result<Vec<SearchResult>, Error> {
-        let search_results = make_request(
-            &client,
-            format!("mods/search?gameId=432&sortField=2&sortOrder=desc&pageSize=10&searchFilter=\"{query}\""),
-        )
-        .await?;
-
-        let search_results = search_results["data"].as_array();
-
-        // ensure there are search results
-        if let None = search_results {
-            return Ok(vec![]);
-        }
-
-        let search_results = search_results.unwrap();
-
-        // filter mods to those which have a version which supports both the given loader and game version
-        let filtered = search_results.iter().filter(|result| {
-            let indexes = result["latestFilesIndexes"].as_array().unwrap();
-
-            for index in indexes {
-                let mod_loader = if let Some(mod_loader) = index["modLoader"].as_u64() {
-                    loader.curseforge().contains(&(mod_loader as u8))
-                } else {
-                    false
-                };
-                let game_version = game_versions.contains(&index["gameVersion"].as_str().unwrap());
-
-                if mod_loader && game_version {
-                    return true;
-                }
-            }
-
-            false
-        });
-
-        // fuzzy search!
-        let matcher = SkimMatcherV2::default();
-        let scores = filtered
-            .clone()
-            .map(|result| result["name"].as_str().unwrap())
-            .enumerate()
-            .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0)))
-            .collect::<Vec<(usize, i64)>>();
-
-        let results = filtered
-            .enumerate()
-            .filter(|(i, _)| scores[*i].1 != 0)
-            .map(|(_, result)| SearchResult {
-                name: result["name"].as_str().unwrap().to_string(),
-                id: result["slug"].as_str().unwrap().to_string(),
-            })
-            .collect::<Vec<SearchResult>>();
-
-        Ok(results)
-    }
-
+impl Mod {
     /// Get a mod from CurseForge by slug.
     pub async fn from_curseforge(
-        client: &Client,
         slug: &str,
         loader: Loader,
-        game_versions: GameVersions<'t>,
-    ) -> Result<Mod<'t>, Error> {
+        game_versions: GameVersions,
+        client: Option<Client>,
+    ) -> Result<Option<CurseMod>, Error> {
+        let client = client.unwrap_or(Client::new());
         let search_results =
             &make_request(&client, format!("mods/search?gameId=432&slug={slug}")).await?["data"];
-        let project = &search_results.as_array().expect("no results found")[0];
+        let projects = search_results.as_array().expect("no results found");
+
+        if projects.len() == 0 {
+            return Ok(None);
+        }
+
+        let project = &projects[0];
 
         let files = project["latestFiles"]
             .as_array()
@@ -156,17 +101,98 @@ impl<'t> Mod<'t> {
         });
         dependencies.dedup_by(|a, b| a.1.parse::<u32>().unwrap() == b.1.parse::<u32>().unwrap());
 
-        Ok(Mod {
-            name: project["name"]
-                .as_str()
-                .expect("project does not exist")
-                .to_string(),
-            filename: latest["fileName"].as_str().unwrap().to_string(),
-            url: latest["downloadUrl"].as_str().unwrap().to_string(),
-            dependencies,
-            source: Sources::CurseForge,
-            loader,
-            game_versions
-        })
+        Ok(Some(CurseMod {
+            data: Mod {
+                name: project["name"]
+                    .as_str()
+                    .expect("project does not exist")
+                    .to_string(),
+                filename: latest["fileName"].as_str().unwrap().to_string(),
+                url: latest["downloadUrl"].as_str().unwrap().to_string(),
+                dependencies,
+                source: Sources::CurseForge,
+                loader,
+                game_versions,
+            },
+            client,
+        }))
+    }
+
+    /// Search for mods on Curseforge
+    pub fn search_curseforge<'a>(
+        query: &'a str,
+        loader: Loader,
+        game_versions: GameVersions,
+        client: Option<Client>,
+    ) -> impl Future<Output = Result<Vec<SearchResult>, Error>> + 'a {
+        async move {
+            let client = client.unwrap_or(Client::new());
+
+            let search_results = make_request(
+                &client,
+                format!("mods/search?gameId=432&sortField=2&sortOrder=desc&pageSize=10&searchFilter=\"{query}\""),
+            )
+            .await?;
+
+            let search_results = search_results["data"].as_array();
+
+            // ensure there are search results
+            if let None = search_results {
+                return Ok(vec![]);
+            }
+
+            let search_results = search_results.unwrap();
+
+            // filter mods to those which have a version which supports both the given loader and game version
+            let filtered = search_results.iter().filter(|result| {
+                let indexes = result["latestFilesIndexes"].as_array().unwrap();
+
+                for index in indexes {
+                    let mod_loader = if let Some(mod_loader) = index["modLoader"].as_u64() {
+                        loader.curseforge().contains(&(mod_loader as u8))
+                    } else {
+                        false
+                    };
+                    let game_version =
+                        game_versions.contains(&index["gameVersion"].as_str().unwrap());
+
+                    if mod_loader && game_version {
+                        return true;
+                    }
+                }
+
+                false
+            });
+
+            // fuzzy search!
+            let matcher = SkimMatcherV2::default();
+            let scores = filtered
+                .clone()
+                .map(|result| result["name"].as_str().unwrap())
+                .enumerate()
+                .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0)))
+                .collect::<Vec<(usize, i64)>>();
+
+            let results = filtered
+                .enumerate()
+                .filter(|(i, _)| scores[*i].1 != 0)
+                .map(|(_, result)| SearchResult {
+                    name: result["name"].as_str().unwrap().to_string(),
+                    id: result["slug"].as_str().unwrap().to_string(),
+                })
+                .collect::<Vec<SearchResult>>();
+
+            Ok(results)
+        }
     }
 }
+
+#[derive(Debug)]
+pub struct CurseMod {
+    pub data: Mod,
+    client: Client,
+}
+
+// impl CurseMod {
+//     fn resolve_dependencies() {}
+// }

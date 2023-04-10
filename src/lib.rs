@@ -2,16 +2,17 @@ mod download;
 mod enums;
 mod sources;
 
+pub use download::Download;
 pub use enums::Loader;
 
 use enums::{DependencyId, DependencyType, Sources};
 
-type GameVersions<'v> = &'v [&'v str];
+type GameVersions = Vec<&'static str>;
 type Error = Box<dyn std::error::Error>;
 
 /// Represents a Minecraft mod.
 #[derive(Debug, PartialEq, Clone)]
-pub struct Mod<'t> {
+pub struct Mod {
     /// The name of the mod
     pub name: String,
 
@@ -29,6 +30,6 @@ pub struct Mod<'t> {
 
     /// The loader the mod is for
     pub loader: Loader,
-    
-    game_versions: GameVersions<'t>,
+
+    game_versions: GameVersions,
 }
