@@ -12,16 +12,14 @@ pub const API_BASE: &str = "https://api.curseforge.com/v1";
 pub const API_KEY: &str = "$2a$10$MpspbkRWQ8D5FLySK2mb/.OK/fwKQ8p7wc4aGtRBKmee8RU30wGYu";
 
 async fn make_request(client: &Client, endpoint: String) -> Result<Value, Error> {
-    let text = client
+    Ok(client
         .get(format!("{API_BASE}/{endpoint}"))
         .header("Accept", "application/json")
         .header("x-api-key", API_KEY)
         .send()
         .await?
-        .text()
-        .await?;
-
-    Ok(serde_json::from_str::<Value>(text.as_str()).unwrap())
+        .json::<Value>()
+        .await?)
 }
 
 fn construct_mod(project: &Value, loader: &Loader, game_versions: Option<&[&str]>) -> Mod {
@@ -104,14 +102,12 @@ fn construct_mod(project: &Value, loader: &Loader, game_versions: Option<&[&str]
         url: latest["downloadUrl"].as_str().unwrap().to_string(),
         dependencies,
         source: Sources::CurseForge,
-        loader: *loader,
-        minecraft_version: latest_index["gameVersion"].as_str().unwrap().to_string(),
     }
 }
 
 #[async_trait]
 pub trait FromCurse {
-    /// Search for mods on CurseForge
+    /// Search for mods on CurseForge.
     async fn search_curseforge(
         client: &Client,
         query: &str,
@@ -142,7 +138,14 @@ impl FromCurse for Mod {
         )
         .await?;
 
-        let search_results = search_results["data"].as_array().expect("no results found");
+        let search_results = search_results["data"].as_array();
+
+        // ensure there are search results
+        if let None = search_results {
+            return Ok(vec![]);
+        }
+
+        let search_results = search_results.unwrap();
 
         // filter mods to those which have a version which supports both the given loader and game version
         let filtered = search_results.iter().filter(|result| {
@@ -164,14 +167,14 @@ impl FromCurse for Mod {
             false
         });
 
-        // Fuzzy search!
+        // fuzzy search!
         let matcher = SkimMatcherV2::default();
         let scores = filtered
             .clone()
             .map(|result| result["name"].as_str().unwrap())
             .enumerate()
-            .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0), name))
-            .collect::<Vec<(usize, i64, &str)>>();
+            .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0)))
+            .collect::<Vec<(usize, i64)>>();
 
         let results = filtered
             .enumerate()

@@ -1,34 +1,86 @@
+use super::SearchResult;
 use crate::{
     enums::{DependencyType, Loader, Sources},
-    Error, Mod,
+    Error, GameVersions, Mod,
 };
 use async_trait::async_trait;
 use ferinth::{structures::version::DependencyType as FerinthDependency, Ferinth};
+use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use reqwest::Client;
+use serde_json::Value;
 
 #[async_trait]
 pub trait FromModrinth {
-    /// Get a mod from Modrinth by ID.
+    /// Search for mods on Modrinth.
+    async fn search_modrinth(
+        client: &Client,
+        query: &str,
+        loader: Loader,
+        game_versions: GameVersions<'async_trait>,
+    ) -> Result<Vec<SearchResult>, Error>;
+
+    /// Get a mod from Modrinth by Project ID.
     async fn from_modrinth(
         client: &Ferinth,
         id: &str,
         loader: Loader,
-        game_versions: Option<&[&str]>,
+        game_versions: GameVersions<'async_trait>,
         featured: Option<bool>,
     ) -> Result<Mod, Error>;
 }
 
 #[async_trait]
 impl FromModrinth for Mod {
+    async fn search_modrinth(
+        client: &Client,
+        query: &str,
+        loader: Loader,
+        game_versions: GameVersions<'async_trait>,
+    ) -> Result<Vec<SearchResult>, Error> {
+        let results = client
+            .get(format!("https://api.modrinth.com/v2/search?query={query}&facets=[[\"project_type:mod\"],[\"categories:{}\"{}],[{}]]", loader.as_str(), match loader { Loader::Quilt => ",\"categories:fabric\"", _ => "" }, game_versions.iter().enumerate().map(|(i, version)| format!("\"versions:{version}\"{}", if i != game_versions.len() - 1 { "," } else { "" })).collect::<String>()).as_str())
+            .send()
+            .await?
+            .json::<Value>()
+            .await?;
+
+        let results = results["hits"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|result| SearchResult {
+                name: result["title"].as_str().unwrap().to_string(),
+                id: result["project_id"].as_str().unwrap().to_string(),
+            });
+
+        // fuzzy search
+        let matcher = SkimMatcherV2::default();
+        let scores = results
+            .clone()
+            .map(|result| result.name)
+            .enumerate()
+            .map(|(i, name)| (i, matcher.fuzzy_match(name.as_str(), query).unwrap_or(0)))
+            .collect::<Vec<(usize, i64)>>();
+
+        let results = results
+            .enumerate()
+            .filter(|(i, _)| scores[*i].1 != 0)
+            .map(|(_, x)| x)
+            .collect::<Vec<SearchResult>>();
+
+        Ok(results)
+    }
+
     async fn from_modrinth(
         client: &Ferinth,
         id: &str,
         loader: Loader,
-        game_versions: Option<&[&str]>,
+        game_versions: GameVersions<'async_trait>,
         featured: Option<bool>,
     ) -> Result<Mod, Error> {
         let project = client.get_project(id).await?;
         let versions = client
-            .list_versions_filtered(id, Some(&[loader.as_str()]), game_versions, featured)
+            .list_versions_filtered(id, Some(&[loader.as_str()]), Some(game_versions), featured)
             .await?;
         let latest = &versions[0];
         let download = &latest.files[0];
@@ -53,8 +105,6 @@ impl FromModrinth for Mod {
                 })
                 .collect::<Vec<(DependencyType, String)>>(),
             source: Sources::Modrinth,
-            loader,
-            minecraft_version: latest.game_versions[0].clone(),
         })
     }
 }

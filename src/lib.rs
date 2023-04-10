@@ -28,10 +28,4 @@ pub struct Mod {
 
     /// Where the mod is sourced from
     source: Sources,
-
-    /// The loader the mod is for
-    loader: Loader,
-
-    /// The version of the game the mod is for
-    minecraft_version: String,
 }
