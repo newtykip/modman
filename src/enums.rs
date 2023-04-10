@@ -1,3 +1,4 @@
+/// Sources that modman can fetch mods from.
 #[derive(Debug)]
 pub enum Sources {
     Modrinth,
@@ -14,6 +15,7 @@ impl ToString for Sources {
     }
 }
 
+/// Types of mod dependencies.
 #[derive(Debug)]
 pub enum DependencyType {
     Optional,

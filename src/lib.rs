@@ -2,9 +2,7 @@ mod download;
 mod enums;
 mod sources;
 
-pub use download::Download;
 pub use enums::Loader;
-pub use sources::{curseforge::FromCurse, modrinth::FromModrinth};
 
 use enums::{DependencyType, Sources};
 

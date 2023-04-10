@@ -1,18 +1,11 @@
 use crate::{Error, Mod};
-use async_trait::async_trait;
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use std::{fs::File, io::Write, path::PathBuf};
 
-#[async_trait]
-pub trait Download {
-    async fn download(&self, client: &Client, directory: PathBuf) -> Result<(), Error>;
-}
-
-#[async_trait]
-impl Download for Mod {
-    async fn download(&self, client: &Client, path: PathBuf) -> Result<(), Error> {
+impl Mod {
+    pub async fn download(&self, client: &Client, path: PathBuf) -> Result<(), Error> {
         if path.is_file() {
             panic!("path must point towards a folder");
         }
