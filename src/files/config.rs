@@ -2,20 +2,20 @@ use ferinth::Ferinth;
 use inquire::{Select, Text};
 use quickxml_to_serde::xml_str_to_json;
 use reqwest::Client;
-use serde::Deserialize;
-use std::path::PathBuf;
+use serde::{Serialize, Deserialize};
+use std::{path::PathBuf, io::Write};
 
 use crate::{Error, Loader};
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     name: String,
-    author: Option<String>,
+    author: String,
     version: String,
     versions: Versions,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Versions {
     minecraft: String,
     forge: Option<String>,
@@ -26,6 +26,16 @@ struct Versions {
 impl Config {
     pub fn read(path: PathBuf) -> Result<Config, toml::de::Error> {
         toml::from_str::<Config>(std::fs::read_to_string(path).unwrap().as_str())
+    }
+
+    pub fn write(&self, dir: PathBuf) -> Result<(), Error> {
+        let content = toml::to_string(&self)?;
+        std::fs::create_dir_all(&dir)?;
+        let mut file = std::fs::File::create(dir.join("pack.toml"))?;
+
+        file.write(content.as_bytes())?;
+
+        Ok(())
     }
 
     pub async fn prompt(client: Option<Client>, ferinth: Option<Ferinth>) -> Result<Config, Error> {
@@ -126,11 +136,7 @@ impl Config {
         // write all of this data into the schema
         let config = Config {
             name,
-            author: if author.is_empty() {
-                None
-            } else {
-                Some(author)
-            },
+            author,
             version,
             versions: Versions {
                 minecraft: minecraft_version,

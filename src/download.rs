@@ -17,8 +17,8 @@ pub trait Download {
 #[async_trait]
 #[duplicate_item(T; [CurseMod]; [ModrinthMod])]
 impl Download for T {
-    async fn download(&self, path: PathBuf, client: Option<Client>) -> Result<(), Error> {
-        if path.is_file() {
+    async fn download(&self, dir: PathBuf, client: Option<Client>) -> Result<(), Error> {
+        if dir.is_file() {
             panic!("path must point towards a folder");
         }
 
@@ -43,10 +43,9 @@ impl Download for T {
         ));
 
         // download chunks
-        std::fs::create_dir_all(&path)?;
+        std::fs::create_dir_all(&dir)?;
 
-        let path = &path.join(&self.data.filename);
-
+        let path = &dir.join(&self.data.filename);
         let mut file = File::create(path)?;
         let mut downloaded = 0u64;
         let mut stream = res.bytes_stream();
