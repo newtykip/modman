@@ -17,7 +17,7 @@ impl SearchResult {
         game_versions: GameVersions,
     ) -> Result<CurseMod, Error> {
         Ok(
-            Mod::from_curseforge(self.id.as_str(), loader, game_versions, None)
+            Mod::from_curseforge(self.id.as_str(), loader, game_versions, None, None)
                 .await?
                 .unwrap(),
         )

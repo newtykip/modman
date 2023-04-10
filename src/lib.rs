@@ -5,7 +5,7 @@ mod sources;
 pub use download::Download;
 pub use enums::Loader;
 
-use enums::{DependencyId, DependencyType, Sources};
+use enums::{Dependency, DependencyId, DependencyType, Sources};
 
 type GameVersions = Vec<&'static str>;
 type Error = Box<dyn std::error::Error>;
@@ -23,7 +23,7 @@ pub struct Mod {
     pub url: String,
 
     /// Dependencies for the mod
-    pub dependencies: Vec<(DependencyType, DependencyId)>,
+    pub dependencies: Vec<Dependency>,
 
     /// Where the mod is sourced from
     pub source: Sources,

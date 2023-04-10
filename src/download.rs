@@ -23,7 +23,11 @@ impl Download for T {
         }
 
         // fetch the mod
-        let res = client.unwrap_or(Client::default()).get(&self.data.url).send().await?;
+        let res = client
+            .unwrap_or(Client::default())
+            .get(&self.data.url)
+            .send()
+            .await?;
         let total_size = res.content_length().unwrap();
 
         // set up progress bar

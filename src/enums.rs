@@ -41,6 +41,8 @@ impl DependencyId {
     }
 }
 
+pub type Dependency = (DependencyType, DependencyId);
+
 /// All of the supported mod loaders.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Loader {

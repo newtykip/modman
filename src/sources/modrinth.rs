@@ -1,6 +1,6 @@
 use super::SearchResult;
 use crate::{
-    enums::{DependencyId, DependencyType, Loader, Sources},
+    enums::{Dependency, DependencyId, DependencyType, Loader, Sources},
     Error, GameVersions, Mod,
 };
 use ferinth::{
@@ -13,10 +13,11 @@ use reqwest::Client;
 use serde_json::Value;
 
 fn construct_mod(
-    name: &String,
+    name: String,
     version: &Version,
     loader: Loader,
     game_versions: GameVersions,
+    ferinth: Ferinth,
 ) -> ModrinthMod {
     let download = &version.files[0];
 
@@ -46,11 +47,12 @@ fn construct_mod(
                         },
                     )
                 })
-                .collect::<Vec<(DependencyType, DependencyId)>>(),
+                .collect::<Vec<Dependency>>(),
             source: Sources::Modrinth,
             loader,
             game_versions,
         },
+        ferinth,
     }
 }
 
@@ -61,7 +63,7 @@ impl Mod {
         loader: Loader,
         game_versions: GameVersions,
         featured: Option<bool>,
-        ferinth: Option<Ferinth>
+        ferinth: Option<Ferinth>,
     ) -> Result<Option<ModrinthMod>, Error> {
         let ferinth = ferinth.unwrap_or(Ferinth::default());
         let project = ferinth.get_project(id).await?;
@@ -81,10 +83,11 @@ impl Mod {
         let latest = &versions[0];
 
         Ok(Some(construct_mod(
-            &project.title,
+            project.title,
             latest,
             loader,
             game_versions,
+            ferinth,
         )))
     }
 
@@ -93,7 +96,7 @@ impl Mod {
         query: &'a str,
         loader: Loader,
         game_versions: GameVersions,
-        client: Option<Client>
+        client: Option<Client>,
     ) -> impl Future<Output = Result<Vec<SearchResult>, Error>> + 'a {
         async move {
             let client = client.unwrap_or(Client::new());
@@ -111,7 +114,7 @@ impl Mod {
                 .iter()
                 .map(|result| SearchResult {
                     name: result["title"].as_str().unwrap().to_string(),
-                    id: result["project_id"].as_str().unwrap().to_string()
+                    id: result["project_id"].as_str().unwrap().to_string(),
                 });
 
             // fuzzy search
@@ -137,6 +140,7 @@ impl Mod {
 #[derive(Debug)]
 pub struct ModrinthMod {
     pub data: Mod,
+    ferinth: Ferinth,
 }
 
 impl ModrinthMod {
@@ -152,14 +156,14 @@ impl ModrinthMod {
             })
             .map(|(_, id)| id);
 
-        let ferinth = Ferinth::default();
         let mut dependencies: Vec<ModrinthMod> = vec![];
 
         for id in ids {
             let version = match id {
-                DependencyId::Version(id) => ferinth.get_version(id.as_str()).await?,
+                DependencyId::Version(id) => self.ferinth.get_version(id.as_str()).await?,
                 DependencyId::Project(id) => {
-                    let versions = ferinth
+                    let versions = self
+                        .ferinth
                         .list_versions_filtered(
                             id.as_str(),
                             Some(&[self.data.loader.as_str()]),
@@ -174,10 +178,11 @@ impl ModrinthMod {
             // todo: resolve recursively
 
             let m = construct_mod(
-                &version.name,
+                version.name.clone(),
                 &version,
                 self.data.loader,
                 self.data.game_versions.clone(),
+                self.ferinth.clone(),
             );
             dependencies.push(m)
         }

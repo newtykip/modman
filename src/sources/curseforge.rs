@@ -3,6 +3,13 @@ use crate::{
     sources::SearchResult,
     Error, GameVersions, Mod,
 };
+use furse::{
+    structures::{
+        file_structs::{File, FileRelationType},
+        mod_structs::Mod as FurseMod,
+    },
+    Furse,
+};
 use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use reqwest::Client;
@@ -22,100 +29,86 @@ async fn make_request(client: &Client, endpoint: String) -> Result<Value, Error>
         .await?)
 }
 
+fn construct_mod(
+    project: FurseMod,
+    file: &File,
+    furse: Furse,
+    loader: Loader,
+    game_versions: GameVersions,
+) -> CurseMod {
+    CurseMod {
+        data: Mod {
+            name: project.name,
+            filename: file.file_name.clone(),
+            url: file.download_url.clone().unwrap().to_string(),
+            dependencies: file
+                .dependencies
+                .iter()
+                .map(|dependency| {
+                    (
+                        match dependency.relation_type {
+                            FileRelationType::RequiredDependency => DependencyType::Required,
+                            FileRelationType::OptionalDependency => DependencyType::Optional,
+                            FileRelationType::Include => DependencyType::Incompatible,
+                            FileRelationType::EmbeddedLibrary => DependencyType::Embedded,
+                            _ => DependencyType::Required,
+                        },
+                        DependencyId::Project(dependency.mod_id.to_string()),
+                    )
+                })
+                .collect(),
+            source: Sources::CurseForge,
+            loader,
+            game_versions,
+        },
+        furse,
+    }
+}
+
 impl Mod {
     /// Get a mod from CurseForge by slug.
     pub async fn from_curseforge(
         slug: &str,
         loader: Loader,
         game_versions: GameVersions,
+        furse: Option<Furse>,
         client: Option<Client>,
     ) -> Result<Option<CurseMod>, Error> {
-        let client = client.unwrap_or(Client::new());
-        let search_results =
-            &make_request(&client, format!("mods/search?gameId=432&slug={slug}")).await?["data"];
+        // todo: implement search into furse - https://github.com/gorilla-devs/furse/issues/5
+        let furse = furse.unwrap_or(Furse::new(API_KEY));
+        let client = client.unwrap_or(Client::default());
+
+        // find the project
+        let search_results = &make_request(
+            &client,
+            format!("mods/search?gameId=432&pageSize=1&slug={slug}"),
+        )
+        .await?["data"];
         let projects = search_results.as_array().expect("no results found");
 
         if projects.len() == 0 {
             return Ok(None);
         }
 
-        let project = &projects[0];
-
-        let files = project["latestFiles"]
-            .as_array()
-            .expect("project has no files");
-        let indexes = project["latestFilesIndexes"]
-            .as_array()
-            .expect("project has no files");
-
-        let file_ids = indexes
-            .iter()
-            .filter(|file| {
-                if let None = file.get("modLoader") {
-                    false
-                } else {
-                    let version = &file["gameVersion"].as_str().unwrap();
-                    let mod_loader = loader.curseforge().contains(
-                        &(file["modLoader"]
-                            .as_u64()
-                            .expect("mod loader not specified") as u8),
-                    );
-
-                    let game_version = game_versions.contains(version);
-
-                    mod_loader && game_version
+        // use furse to fetch extra information
+        let project_id = projects[0]["id"].as_i64().unwrap() as i32;
+        let project = furse.get_mod(project_id).await?;
+        let files = furse.get_mod_files(project_id).await?;
+        let file = files.iter().find(|file| {
+            game_versions.contains(&file.sortable_game_versions[0].game_version_name.as_str())
+                && match loader {
+                    Loader::Quilt => vec!["Fabric", "Quilt"],
+                    Loader::Fabric => vec!["Fabric"],
+                    Loader::Forge => vec!["Forge"],
                 }
-            })
-            .map(|file| file["fileId"].as_u64().unwrap())
-            .collect::<Vec<u64>>();
-
-        let filtered_files = files
-            .iter()
-            .filter(|file| file_ids.contains(&file["id"].as_u64().unwrap()))
-            .collect::<Vec<&Value>>();
-
-        let latest = *filtered_files.last().unwrap();
-
-        let mut dependencies = latest["dependencies"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|dependency| {
-                (
-                    match dependency["relationType"].as_u64().unwrap() {
-                        1 => DependencyType::Embedded,
-                        2 => DependencyType::Optional,
-                        6 => DependencyType::Incompatible,
-                        _ => DependencyType::Required,
-                    },
-                    DependencyId::Version(dependency["modId"].as_u64().unwrap().to_string()),
-                )
-            })
-            .collect::<Vec<(DependencyType, DependencyId)>>();
-
-        dependencies.sort_by(|a, b| {
-            a.1.parse::<u32>()
-                .unwrap()
-                .partial_cmp(&b.1.parse::<u32>().unwrap())
-                .unwrap()
+                .contains(&file.sortable_game_versions[1].game_version_name.as_str())
         });
-        dependencies.dedup_by(|a, b| a.1.parse::<u32>().unwrap() == b.1.parse::<u32>().unwrap());
 
-        Ok(Some(CurseMod {
-            data: Mod {
-                name: project["name"]
-                    .as_str()
-                    .expect("project does not exist")
-                    .to_string(),
-                filename: latest["fileName"].as_str().unwrap().to_string(),
-                url: latest["downloadUrl"].as_str().unwrap().to_string(),
-                dependencies,
-                source: Sources::CurseForge,
-                loader,
-                game_versions,
-            },
-            client,
-        }))
+        Ok(if let Some(file) = file {
+            Some(construct_mod(project, file, furse, loader, game_versions))
+        } else {
+            None
+        })
     }
 
     /// Search for mods on Curseforge
@@ -190,9 +183,59 @@ impl Mod {
 #[derive(Debug)]
 pub struct CurseMod {
     pub data: Mod,
-    client: Client,
+    furse: Furse,
 }
 
-// impl CurseMod {
-//     fn resolve_dependencies() {}
-// }
+impl CurseMod {
+    /// Resolve the mods dependencies
+    pub async fn resolve_dependencies(&self, optional: bool) -> Result<Vec<CurseMod>, Error> {
+        let ids = self
+            .data
+            .dependencies
+            .iter()
+            .filter(|(dependency_type, _)| match dependency_type {
+                DependencyType::Optional => optional,
+                _ => true,
+            })
+            .map(|(_, id)| id);
+
+        let mut dependencies: Vec<CurseMod> = vec![];
+
+        for id in ids {
+            if let DependencyId::Project(id) = id {
+                let id = id.parse::<i32>().unwrap();
+                let project = self.furse.get_mod(id).await?;
+                let files = self.furse.get_mod_files(id).await?;
+                let file = files.iter().find(|file| {
+                    self.data
+                        .game_versions
+                        .contains(&file.sortable_game_versions[0].game_version_name.as_str())
+                        && match self.data.loader {
+                            Loader::Quilt => vec!["Fabric", "Quilt"],
+                            Loader::Fabric => vec!["Fabric"],
+                            Loader::Forge => vec!["Forge"],
+                        }
+                        .contains(&file.sortable_game_versions[1].game_version_name.as_str())
+                });
+
+                // todo: resolve recursively
+
+                if let Some(file) = file {
+                    dependencies.push(construct_mod(
+                        project,
+                        file,
+                        self.furse.clone(),
+                        self.data.loader,
+                        self.data.game_versions.clone(),
+                    ));
+                } else {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        }
+
+        Ok(dependencies)
+    }
+}
