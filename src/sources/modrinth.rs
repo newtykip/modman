@@ -1,6 +1,6 @@
 use crate::{
     enums::{DependencyType, Loader, Sources},
-    Mod,
+    Error, Mod,
 };
 use async_trait::async_trait;
 use ferinth::{structures::version::DependencyType as FerinthDependency, Ferinth};
@@ -14,7 +14,7 @@ pub trait FromModrinth {
         loader: Loader,
         game_versions: Option<&[&str]>,
         featured: Option<bool>,
-    ) -> Result<Mod, Box<dyn std::error::Error>>;
+    ) -> Result<Mod, Error>;
 }
 
 #[async_trait]
@@ -25,7 +25,7 @@ impl FromModrinth for Mod {
         loader: Loader,
         game_versions: Option<&[&str]>,
         featured: Option<bool>,
-    ) -> Result<Mod, Box<dyn std::error::Error>> {
+    ) -> Result<Mod, Error> {
         let project = client.get_project(id).await?;
         let versions = client
             .list_versions_filtered(id, Some(&[loader.as_str()]), game_versions, featured)
@@ -53,6 +53,8 @@ impl FromModrinth for Mod {
                 })
                 .collect::<Vec<(DependencyType, String)>>(),
             source: Sources::Modrinth,
+            loader,
+            minecraft_version: latest.game_versions[0].clone(),
         })
     }
 }

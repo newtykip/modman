@@ -23,6 +23,7 @@ pub enum DependencyType {
 }
 
 /// All of the supported mod loaders.
+#[derive(Debug, Clone, Copy)]
 pub enum Loader {
     Forge,
     Fabric,
