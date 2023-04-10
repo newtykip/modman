@@ -1,20 +1,61 @@
 use super::SearchResult;
 use crate::{
-    enums::{DependencyType, Loader, Sources},
+    enums::{DependencyId, DependencyType, Loader, Sources},
     Error, GameVersions, Mod,
 };
-use ferinth::{structures::version::DependencyType as FerinthDependency, Ferinth};
+use ferinth::{
+    structures::version::{DependencyType as FerinthDependency, Version},
+    Ferinth,
+};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use reqwest::Client;
 use serde_json::Value;
 
-impl<'v> Mod {
+fn construct_mod<'t>(
+    name: &String,
+    version: &Version,
+    loader: Loader,
+    game_versions: GameVersions<'t>,
+) -> Mod<'t> {
+    let download = &version.files[0];
+
+    Mod {
+        name: name.clone(),
+        filename: download.filename.clone(),
+        url: download.url.to_string(),
+        dependencies: version
+            .dependencies
+            .iter()
+            .filter(|dependency| dependency.version_id.is_some() || dependency.project_id.is_some())
+            .map(|dependency| {
+                (
+                    match dependency.dependency_type {
+                        FerinthDependency::Embedded => DependencyType::Embedded,
+                        FerinthDependency::Incompatible => DependencyType::Incompatible,
+                        FerinthDependency::Optional => DependencyType::Optional,
+                        _ => DependencyType::Required,
+                    },
+                    if let Some(version_id) = dependency.clone().version_id {
+                        DependencyId::Version(version_id)
+                    } else {
+                        DependencyId::Project(dependency.clone().project_id.unwrap())
+                    },
+                )
+            })
+            .collect::<Vec<(DependencyType, DependencyId)>>(),
+        source: Sources::Modrinth,
+        loader,
+        game_versions,
+    }
+}
+
+impl<'t> Mod<'t> {
     /// Search for mods on Modrinth.
     pub async fn search_modrinth(
         client: &Client,
         query: &str,
         loader: Loader,
-        game_versions: GameVersions<'v>,
+        game_versions: GameVersions<'t>,
     ) -> Result<Vec<SearchResult>, Error> {
         let results = client
             .get(format!("https://api.modrinth.com/v2/search?query={query}&facets=[[\"project_type:mod\"],[\"categories:{}\"{}],[{}]]", loader.as_str(), match loader { Loader::Quilt => ",\"categories:fabric\"", _ => "" }, game_versions.iter().enumerate().map(|(i, version)| format!("\"versions:{version}\"{}", if i != game_versions.len() - 1 { "," } else { "" })).collect::<String>()).as_str())
@@ -52,39 +93,65 @@ impl<'v> Mod {
 
     /// Get a mod from Modrinth by project ID.
     pub async fn from_modrinth(
-        client: &Ferinth,
         id: &str,
         loader: Loader,
-        game_versions: GameVersions<'v>,
+        game_versions: GameVersions<'t>,
         featured: Option<bool>,
-    ) -> Result<Mod, Error> {
-        let project = client.get_project(id).await?;
-        let versions = client
+    ) -> Result<Option<Mod<'t>>, Error> {
+        let ferinth = Ferinth::default();
+        let project = ferinth.get_project(id).await?;
+        let versions = ferinth
             .list_versions_filtered(id, Some(&[loader.as_str()]), Some(game_versions), featured)
             .await?;
-        let latest = &versions[0];
-        let download = &latest.files[0];
 
-        Ok(Mod {
-            name: project.title,
-            filename: download.filename.clone(),
-            url: download.url.to_string(),
-            dependencies: latest
-                .dependencies
-                .iter()
-                .map(|dependency| {
-                    (
-                        match dependency.dependency_type {
-                            FerinthDependency::Embedded => DependencyType::Embedded,
-                            FerinthDependency::Incompatible => DependencyType::Incompatible,
-                            FerinthDependency::Optional => DependencyType::Optional,
-                            _ => DependencyType::Required,
-                        },
-                        dependency.version_id.clone().unwrap(),
-                    )
-                })
-                .collect::<Vec<(DependencyType, String)>>(),
-            source: Sources::Modrinth,
-        })
+        if versions.len() == 0 {
+            return Ok(None);
+        }
+
+        let latest = &versions[0];
+
+        Ok(Some(construct_mod(
+            &project.title,
+            latest,
+            loader,
+            game_versions,
+        )))
+    }
+
+    /// Resolve the mods dependencies.
+    pub async fn resolve_dependencies(&self, optional: bool) -> Result<Vec<Mod>, Error> {
+        let ids = self
+            .dependencies
+            .iter()
+            .filter(|(dependency_type, _)| match dependency_type {
+                DependencyType::Optional => optional,
+                _ => true,
+            })
+            .map(|(_, id)| id);
+
+        let ferinth = Ferinth::default();
+        let mut dependencies: Vec<Mod> = vec![];
+
+        for id in ids {
+            let version = match id {
+                DependencyId::Version(id) => ferinth.get_version(id.as_str()).await?,
+                DependencyId::Project(id) => {
+                    let versions = ferinth
+                        .list_versions_filtered(
+                            id.as_str(),
+                            Some(&[self.loader.as_str()]),
+                            Some(self.game_versions),
+                            None,
+                        )
+                        .await?;
+                    versions[0].clone()
+                }
+            };
+
+            let m = construct_mod(&version.name, &version, self.loader, self.game_versions);
+            dependencies.push(m)
+        }
+
+        Ok(dependencies)
     }
 }

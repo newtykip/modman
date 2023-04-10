@@ -1,5 +1,7 @@
+use std::str::FromStr;
+
 /// Sources that modman can fetch mods from.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Sources {
     Modrinth,
     CurseForge,
@@ -16,7 +18,7 @@ impl ToString for Sources {
 }
 
 /// Types of mod dependencies.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum DependencyType {
     Optional,
     Required,
@@ -24,8 +26,23 @@ pub enum DependencyType {
     Embedded,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum DependencyId {
+    Project(String),
+    Version(String),
+}
+
+impl DependencyId {
+    pub fn parse<T: FromStr>(&self) -> Result<T, <T as FromStr>::Err> {
+        match self {
+            DependencyId::Project(x) => x.parse::<T>(),
+            DependencyId::Version(x) => x.parse::<T>()
+        }
+    }
+}
+
 /// All of the supported mod loaders.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Loader {
     Forge,
     Fabric,

@@ -1,5 +1,5 @@
 use crate::{
-    enums::{DependencyType, Loader, Sources},
+    enums::{DependencyType, Loader, Sources, DependencyId},
     sources::SearchResult,
     Error, GameVersions, Mod,
 };
@@ -21,7 +21,7 @@ async fn make_request(client: &Client, endpoint: String) -> Result<Value, Error>
         .await?)
 }
 
-impl<'t> Mod {
+impl<'t> Mod<'t> {
     /// Search for mods on Curseforge
     pub async fn search_curseforge(
         client: &Client,
@@ -91,7 +91,7 @@ impl<'t> Mod {
         slug: &str,
         loader: Loader,
         game_versions: GameVersions<'t>,
-    ) -> Result<Mod, Error> {
+    ) -> Result<Mod<'t>, Error> {
         let search_results =
             &make_request(&client, format!("mods/search?gameId=432&slug={slug}")).await?["data"];
         let project = &search_results.as_array().expect("no results found")[0];
@@ -129,8 +129,6 @@ impl<'t> Mod {
             .filter(|file| file_ids.contains(&file["id"].as_u64().unwrap()))
             .collect::<Vec<&Value>>();
 
-        println!("{:?}", filtered_files);
-
         let latest = *filtered_files.last().unwrap();
 
         let mut dependencies = latest["dependencies"]
@@ -145,10 +143,10 @@ impl<'t> Mod {
                         6 => DependencyType::Incompatible,
                         _ => DependencyType::Required,
                     },
-                    dependency["modId"].as_u64().unwrap().to_string(),
+                    DependencyId::Version(dependency["modId"].as_u64().unwrap().to_string()),
                 )
             })
-            .collect::<Vec<(DependencyType, String)>>();
+            .collect::<Vec<(DependencyType, DependencyId)>>();
 
         dependencies.sort_by(|a, b| {
             a.1.parse::<u32>()
@@ -167,6 +165,8 @@ impl<'t> Mod {
             url: latest["downloadUrl"].as_str().unwrap().to_string(),
             dependencies,
             source: Sources::CurseForge,
+            loader,
+            game_versions
         })
     }
 }

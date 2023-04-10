@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use std::{fs::File, io::Write, path::PathBuf};
 
-impl Mod {
+impl<'t> Mod<'t> {
     pub async fn download(&self, client: &Client, path: PathBuf) -> Result<(), Error> {
         if path.is_file() {
             panic!("path must point towards a folder");
