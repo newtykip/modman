@@ -1,7 +1,9 @@
 use std::str::FromStr;
 
+use serde::Serialize;
+
 /// Sources that modman can fetch mods from.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum Sources {
     Modrinth,
     CurseForge,
@@ -18,7 +20,7 @@ impl ToString for Sources {
 }
 
 /// Types of mod dependencies.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum DependencyType {
     Optional,
     Required,
@@ -26,7 +28,7 @@ pub enum DependencyType {
     Embedded,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum DependencyId {
     Project(String),
     Version(String),
@@ -44,7 +46,7 @@ impl DependencyId {
 pub type Dependency = (DependencyType, DependencyId);
 
 /// All of the supported mod loaders.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub enum Loader {
     Forge,
     Fabric,

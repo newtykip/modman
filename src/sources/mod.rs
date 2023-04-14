@@ -11,6 +11,7 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
+    #[allow(dead_code)]
     async fn resolve_curseforge(
         &self,
         loader: Loader,
@@ -23,6 +24,7 @@ impl SearchResult {
         )
     }
 
+    #[allow(dead_code)]
     async fn resolve_modrinth(
         &self,
         loader: Loader,

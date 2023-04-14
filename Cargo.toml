@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 Inflector = "0.11.4"
 async-trait = "0.1.68"
+clap = { version = "4.2.1", features = ["derive"] }
 duplicate = "1.0.0"
 ferinth = "2.7.4"
 furse = "1.5.9"
@@ -15,6 +16,7 @@ futures-util = "0.3.28"
 fuzzy-matcher = "0.3.7"
 indicatif = "0.17.3"
 inquire = "0.6.1"
+owo-colors = { version = "3.5.0", features = ["supports-colors"] }
 quickxml_to_serde = "0.5.0"
 reqwest = { version = "0.11.16", features = ["stream", "json"] }
 serde = { version = "1.0.159", features = ["derive"] }
