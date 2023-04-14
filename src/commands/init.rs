@@ -115,7 +115,7 @@ pub async fn execute(options: Args) -> Result<(), Error> {
                 .collect::<Vec<String>>();
 
             loader_versions.reverse();
-            
+
             loader_versions.first().unwrap().to_owned()
         }
     };
