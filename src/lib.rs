@@ -1,7 +1,7 @@
 mod download;
 mod enums;
-mod files;
 mod sources;
+mod structs;
 
 use enums::{Dependency, Sources};
 use serde::Serialize;
@@ -11,9 +11,7 @@ pub mod utils;
 
 pub use download::Download;
 pub use enums::Loader;
-pub use files::config::{Config, ConfigVersions};
-pub use files::index::Index;
-pub use files::Toml;
+pub use structs::{Config, ConfigVersions, Profile};
 
 pub type Error = Box<dyn std::error::Error>;
 type GameVersions = Vec<&'static str>;

@@ -1,38 +1,15 @@
 use ferinth::Ferinth;
 use inquire::{validator::Validation, Select, Text};
-use modman::{utils::modman_dir, Config, ConfigVersions, Error, Index, Loader, Toml};
-use nanoid::nanoid;
+use modman::{Config, ConfigVersions, Error, Loader, Profile};
 use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
 use reqwest::Client;
 
-// todo: make sure names can not be duplicated
+// todo: allow questions to be answered via arguments
 
 #[tokio::main]
 pub async fn execute() -> Result<(), Error> {
-    // create the directory
-    let uuid = nanoid!();
-    let modman_directory = modman_dir();
-    let modman_existed = modman_directory.exists();
-    let pack_directory = modman_directory.join(&uuid);
-
-    if !pack_directory.exists() {
-        std::fs::create_dir_all(pack_directory.clone())?;
-    }
-
-    // load the index file
-    let index_file = if modman_existed {
-        Index::open(modman_directory.join("index.toml"))?
-    } else {
-        Index::new(modman_directory.join("index.toml"))
-    };
-
-    let used_names = index_file
-        .0
-        .par_iter()
-        .filter(|e| e.0 != "path") // remove the stored path key
-        .map(|e| e.1.to_string())
-        .collect::<Vec<String>>();
+    let used_names = Profile::used_ids()?;
 
     // prepare the game versions list
     let client = Client::new();
@@ -61,7 +38,7 @@ pub async fn execute() -> Result<(), Error> {
             .with_validator(move |name: &str| {
                 if name.len() == 0 {
                     Ok(Validation::Invalid("Name can not be empty".into()))
-                } else if used_names.contains(&name.to_string()) {
+                } else if used_names.contains(&Profile::name_to_id(name)) {
                     Ok(Validation::Invalid("Name has already been used".into()))
                 } else {
                     Ok(Validation::Valid)
@@ -156,11 +133,8 @@ pub async fn execute() -> Result<(), Error> {
         },
     };
 
-    // save to profile.toml
-    config.write(pack_directory.join("pack.toml"))?;
-
-    // add to index.toml
-    index_file.append(uuid, name)?;
+    // Create the profile
+    Profile::new(config)?;
 
     Ok(())
 }
