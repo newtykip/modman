@@ -1,21 +1,32 @@
-use clap::Args as ClapArgs;
 use ferinth::Ferinth;
-use inquire::{Select, Text};
-use modman::config::Versions;
-use modman::{Config, Error, Loader};
+use inquire::{validator::Validation, Select, Text};
+use modman::{utils::modman_dir, Config, ConfigVersions, Error, Index, Loader, Toml};
+use nanoid::nanoid;
 use quickxml_to_serde::xml_str_to_json;
+use rayon::prelude::*;
 use reqwest::Client;
 
-#[derive(ClapArgs, Debug)]
-pub struct Args {
-    /// Autofill fields where possible
-    #[arg(short, long, default_value_t = false)]
-    yes: bool,
-}
+// i can have an index file in the modman root that stores an index of which uuid corresponds to which modpack
+// "uuid": "modpack name" pairs
+
+// todo: make sure names can not be duplicated
 
 #[tokio::main]
-pub async fn execute(options: Args) -> Result<(), Error> {
-    let current_dir = std::env::current_dir()?;
+pub async fn execute() -> Result<(), Error> {
+    // create the directory
+    let uuid = nanoid!();
+    let modman_directory = modman_dir();
+    let modman_existed = modman_directory.exists();
+    let pack_directory = modman_directory.join(&uuid);
+
+    if !pack_directory.exists() {
+        std::fs::create_dir_all(pack_directory.clone())?;
+    }
+
+    if !modman_existed {
+        let index = Index::default();
+        index.write(modman_directory.join("index.toml"))?;
+    }
 
     // prepare the game versions list
     let client = Client::new();
@@ -24,7 +35,7 @@ pub async fn execute(options: Args) -> Result<(), Error> {
     let mut game_versions = ferinth
         .list_game_versions()
         .await?
-        .iter()
+        .par_iter()
         .filter(|v| {
             v.major
                 && v.version.split(".").collect::<Vec<&str>>()[1]
@@ -38,55 +49,47 @@ pub async fn execute(options: Args) -> Result<(), Error> {
     game_versions.pop();
 
     // prompt the user for the modpack's information
+    let (name, author, version, minecraft_version) = (
+        // 1. name of the modpack
+        Text::new("What is the name of your modpack?")
+            .with_validator(|name: &str| {
+                if name.len() == 0 {
+                    Ok(Validation::Invalid("Name can not be empty".into()))
+                } else {
+                    Ok(Validation::Valid)
+                }
+            })
+            .prompt()?,
+        // 2. author of the modpack
+        Text::new("Who is the author of this modpack?")
+            .with_default(std::env::var("USER").unwrap().as_str())
+            .prompt()?,
+        // 3. version of the modpack
+        Text::new("What is the version of this modpack?")
+            .with_default("1.0.0")
+            .prompt()?,
+        // 4. the game version the modpack should run on
+        Select::new("What Minecraft version do you want to use?", game_versions).prompt()?,
+    );
 
-    let (name, author, version) = {
-        let name_default = current_dir.iter().last().unwrap().to_str().unwrap();
+    // 5. the mod loader the modpack should run on
+    let mod_loader = {
+        let loader = Select::new(
+            "Which mod loader do you want to use?",
+            vec!["Forge", "Fabric", "Quilt"],
+        )
+        .prompt()?;
 
-        let author_default = std::env::var("USER").unwrap();
-        let version_default = "1.0.0";
-
-        if !options.yes {
-            // 1. name of the modpack
-            (
-                Text::new("What is the name of your modpack?")
-                    .with_default(name_default)
-                    .prompt()?,
-                // 2. author of the modpack
-                Text::new("Who is the author of this modpack?")
-                    .with_default(author_default.as_str())
-                    .prompt()?,
-                // 3. version of the modpack
-                Text::new("What is the version of this modpack?")
-                    .with_default(version_default)
-                    .prompt()?,
-            )
-        } else {
-            (
-                name_default.to_string(),
-                author_default,
-                version_default.to_string(),
-            )
+        match loader {
+            "Forge" => Loader::Forge,
+            "Fabric" => Loader::Fabric,
+            "Quilt" => Loader::Quilt,
+            _ => unreachable!(),
         }
     };
 
-    // 4. the game version the modpack should run on
-    let minecraft_version =
-        Select::new("What Minecraft version do you want to use?", game_versions).prompt()?;
-
-    // 5. the mod loader the modpack should run on
-    let mod_loader = match Select::new(
-        "What mod loader do you want to use?",
-        vec!["Forge", "Fabric", "Quilt"],
-    )
-    .prompt()?
-    {
-        "Forge" => Loader::Forge,
-        "Fabric" => Loader::Fabric,
-        "Quilt" => Loader::Quilt,
-        _ => unreachable!(),
-    };
-
-    // find the latest version of the mod laoder
+    // find the latest version of the mod loader
+    // todo: maybe allow for selection of versions? how useful is this?
     let loader_versions = xml_str_to_json(client.get(match mod_loader {
 		Loader::Forge => "https://files.minecraftforge.net/maven/net/minecraftforge/forge/maven-metadata.xml",
 		Loader::Fabric => "https://maven.fabricmc.net/net/fabricmc/fabric-loader/maven-metadata.xml",
@@ -96,7 +99,7 @@ pub async fn execute(options: Args) -> Result<(), Error> {
     let loader_versions = loader_versions["metadata"]["versioning"]["versions"]["version"]
         .as_array()
         .unwrap()
-        .iter()
+        .par_iter()
         .map(|v| v.as_str().unwrap());
 
     let loader_version: String = match mod_loader {
@@ -122,10 +125,10 @@ pub async fn execute(options: Args) -> Result<(), Error> {
 
     // write all of this data into the schema
     let config = Config {
-        name,
+        name: name.clone(),
         author,
         version,
-        versions: Versions {
+        versions: ConfigVersions {
             minecraft: minecraft_version,
             forge: if mod_loader == Loader::Forge {
                 Some(loader_version.clone())
@@ -145,8 +148,11 @@ pub async fn execute(options: Args) -> Result<(), Error> {
         },
     };
 
-    // save the information to a file
-    config.write(current_dir)?;
+    // save to profile.toml
+    config.write(pack_directory.join("pack.toml"))?;
+
+    // add to index.toml
+    Index::append(modman_directory.join("index.toml"), uuid, name)?;
 
     Ok(())
 }

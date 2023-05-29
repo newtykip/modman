@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use modman::Error;
 
-pub mod prism;
+pub mod create;
 
 #[derive(Parser)]
 pub struct Command {
@@ -11,14 +11,14 @@ pub struct Command {
 
 #[derive(Subcommand)]
 pub enum Subcommands {
-    /// Export the selected profile to a Prism instance
-    Prism,
+    /// Create a new profile
+    Create,
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
     let subcommand = command.subcommand;
 
     Ok(match subcommand {
-        Subcommands::Prism => prism::execute()?,
+        Subcommands::Create => create::execute()?,
     })
 }

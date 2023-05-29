@@ -12,6 +12,7 @@ use furse::{
 };
 use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use rayon::prelude::*;
 use reqwest::Client;
 use serde_json::Value;
 
@@ -43,7 +44,7 @@ fn construct_mod(
             url: file.download_url.clone().unwrap().to_string(),
             dependencies: file
                 .dependencies
-                .iter()
+                .par_iter()
                 .map(|dependency| {
                     (
                         match dependency.relation_type {

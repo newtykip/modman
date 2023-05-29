@@ -14,6 +14,7 @@ pub trait Download {
     async fn download(&self, path: PathBuf, client: Option<Client>) -> Result<(), Error>;
 }
 
+// todo: download to buffer, not file
 #[async_trait]
 #[duplicate_item(T; [CurseMod]; [ModrinthMod])]
 impl Download for T {

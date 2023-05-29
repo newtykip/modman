@@ -1,6 +1,5 @@
-use std::str::FromStr;
-
 use serde::Serialize;
+use std::str::FromStr;
 
 /// Sources that modman can fetch mods from.
 #[derive(Debug, PartialEq, Clone, Serialize)]

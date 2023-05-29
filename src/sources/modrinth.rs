@@ -9,6 +9,7 @@ use ferinth::{
 };
 use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use rayon::prelude::*;
 use reqwest::Client;
 use serde_json::Value;
 
@@ -28,7 +29,7 @@ fn construct_mod(
             url: download.url.to_string(),
             dependencies: version
                 .dependencies
-                .iter()
+                .par_iter()
                 .filter(|dependency| {
                     dependency.version_id.is_some() || dependency.project_id.is_some()
                 })
@@ -111,7 +112,7 @@ impl Mod {
             let results = results["hits"]
                 .as_array()
                 .unwrap()
-                .iter()
+                .par_iter()
                 .map(|result| SearchResult {
                     name: result["title"].as_str().unwrap().to_string(),
                     id: result["project_id"].as_str().unwrap().to_string(),

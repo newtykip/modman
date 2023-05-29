@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 
-pub mod export;
-pub mod init;
+pub mod profile;
 
 #[derive(Parser)]
 #[clap(version)]
@@ -12,10 +11,6 @@ pub struct Value {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    // todo: move to own subcommand under profile command
-    /// Initialise a new profile
-    Init(init::Args),
-
-    /// Export the currently selected profile
-    Export(export::Command),
+    /// Manage your profiles
+    Profile(profile::Command),
 }

@@ -1,17 +1,16 @@
-mod commands;
 use clap::Parser;
-use commands::{Commands, Value};
+use human_panic::setup_panic;
 use modman::Error;
 
+mod commands;
 use commands::*;
 
-// todo: profile system with git repos hidden somewhere which can be synchronised on command
-
 fn main() -> Result<(), Error> {
+    setup_panic!();
+
     let command = Value::parse().command;
 
     Ok(match command {
-        Commands::Init(options) => init::execute(options)?,
-        Commands::Export(subcommand) => export::parse(subcommand)?,
+        Commands::Profile(subcommand) => profile::parse(subcommand)?,
     })
 }
