@@ -6,9 +6,6 @@ use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
 use reqwest::Client;
 
-// i can have an index file in the modman root that stores an index of which uuid corresponds to which modpack
-// "uuid": "modpack name" pairs
-
 // todo: make sure names can not be duplicated
 
 #[tokio::main]
@@ -23,10 +20,19 @@ pub async fn execute() -> Result<(), Error> {
         std::fs::create_dir_all(pack_directory.clone())?;
     }
 
-    if !modman_existed {
-        let index = Index::default();
-        index.write(modman_directory.join("index.toml"))?;
-    }
+    // load the index file
+    let index_file = if modman_existed {
+        Index::open(modman_directory.join("index.toml"))?
+    } else {
+        Index::new(modman_directory.join("index.toml"))
+    };
+
+    let used_names = index_file
+        .0
+        .par_iter()
+        .filter(|e| e.0 != "path") // remove the stored path key
+        .map(|e| e.1.to_string())
+        .collect::<Vec<String>>();
 
     // prepare the game versions list
     let client = Client::new();
@@ -52,9 +58,11 @@ pub async fn execute() -> Result<(), Error> {
     let (name, author, version, minecraft_version) = (
         // 1. name of the modpack
         Text::new("What is the name of your modpack?")
-            .with_validator(|name: &str| {
+            .with_validator(move |name: &str| {
                 if name.len() == 0 {
                     Ok(Validation::Invalid("Name can not be empty".into()))
+                } else if used_names.contains(&name.to_string()) {
+                    Ok(Validation::Invalid("Name has already been used".into()))
                 } else {
                     Ok(Validation::Valid)
                 }
@@ -152,7 +160,7 @@ pub async fn execute() -> Result<(), Error> {
     config.write(pack_directory.join("pack.toml"))?;
 
     // add to index.toml
-    Index::append(modman_directory.join("index.toml"), uuid, name)?;
+    index_file.append(uuid, name)?;
 
     Ok(())
 }

@@ -8,7 +8,7 @@ pub mod config;
 pub mod index;
 
 pub trait Toml {
-    fn read(path: PathBuf) -> Result<Self, toml::de::Error>
+    fn open(path: PathBuf) -> Result<Self, toml::de::Error>
     where
         Self: Serialize + for<'de> Deserialize<'de> + Sized,
     {
