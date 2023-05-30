@@ -1,20 +1,19 @@
-mod download;
 mod enums;
 mod sources;
 mod structs;
+
+pub mod utils;
 
 use enums::{Dependency, Sources};
 use serde::Serialize;
 use std::{io::Write, path::PathBuf};
 
-pub mod utils;
-
-pub use download::Download;
 pub use enums::Loader;
 pub use structs::{Config, ConfigVersions, Profile};
 
-pub type Error = Box<dyn std::error::Error>;
 type GameVersions = Vec<&'static str>;
+
+pub type Error = Box<dyn std::error::Error>;
 
 /// Represents a Minecraft mod.
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -46,7 +45,7 @@ impl Mod {
         std::fs::create_dir_all(&dir)?;
         let mut file = std::fs::File::create(dir.join(format!("{}.mm.toml", self.name)))?;
 
-        file.write(content.as_bytes())?;
+        file.write_all(content.as_bytes())?;
 
         Ok(())
     }

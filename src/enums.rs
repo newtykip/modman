@@ -14,7 +14,7 @@ impl ToString for Sources {
             Sources::CurseForge => "CurseForge",
             Sources::Modrinth => "Modrinth",
         }
-        .to_string()
+        .into()
     }
 }
 

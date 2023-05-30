@@ -7,7 +7,6 @@ use ferinth::{
     structures::version::{DependencyType as FerinthDependency, Version},
     Ferinth,
 };
-use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rayon::prelude::*;
 use reqwest::Client;
@@ -24,7 +23,7 @@ fn construct_mod(
 
     ModrinthMod {
         data: Mod {
-            name: name.clone(),
+            name,
             filename: download.filename.clone(),
             url: download.url.to_string(),
             dependencies: version
@@ -77,7 +76,7 @@ impl Mod {
             )
             .await?;
 
-        if versions.len() == 0 {
+        if versions.is_empty() {
             return Ok(None);
         }
 
@@ -93,48 +92,46 @@ impl Mod {
     }
 
     /// Search for mods on Modrinth.
-    pub fn search_modrinth<'a>(
-        query: &'a str,
+    pub async fn search_modrinth(
+        query: &str,
         loader: Loader,
         game_versions: GameVersions,
         client: Option<Client>,
-    ) -> impl Future<Output = Result<Vec<SearchResult>, Error>> + 'a {
-        async move {
-            let client = client.unwrap_or(Client::new());
+    ) -> Result<Vec<SearchResult>, Error> {
+        let client = client.unwrap_or(Client::new());
 
-            let results = client
+        let results = client
             .get(format!("https://api.modrinth.com/v2/search?query={query}&facets=[[\"project_type:mod\"],[\"categories:{}\"{}],[{}]]", loader.as_str(), match loader { Loader::Quilt => ",\"categories:fabric\"", _ => "" }, game_versions.iter().enumerate().map(|(i, version)| format!("\"versions:{version}\"{}", if i != game_versions.len() - 1 { "," } else { "" })).collect::<String>()).as_str())
             .send()
             .await?
             .json::<Value>()
             .await?;
 
-            let results = results["hits"]
-                .as_array()
-                .unwrap()
-                .par_iter()
-                .map(|result| SearchResult {
-                    name: result["title"].as_str().unwrap().to_string(),
-                    id: result["project_id"].as_str().unwrap().to_string(),
-                });
+        let results = results["hits"]
+            .as_array()
+            .unwrap()
+            .par_iter()
+            .map(|result| SearchResult {
+                name: result["title"].as_str().unwrap().into(),
+                id: result["project_id"].as_str().unwrap().into(),
+            });
 
-            // fuzzy search
-            let matcher = SkimMatcherV2::default();
-            let scores = results
-                .clone()
-                .map(|result| result.name)
-                .enumerate()
-                .map(|(i, name)| (i, matcher.fuzzy_match(name.as_str(), query).unwrap_or(0)))
-                .collect::<Vec<(usize, i64)>>();
+        // fuzzy search
+        let matcher = SkimMatcherV2::default();
+        let scores = results
+            .clone()
+            .map(|result| result.name)
+            .enumerate()
+            .map(|(i, name)| (i, matcher.fuzzy_match(name.as_str(), query).unwrap_or(0)))
+            .collect::<Vec<(usize, i64)>>();
 
-            let results = results
-                .enumerate()
-                .filter(|(i, _)| scores[*i].1 != 0)
-                .map(|(_, x)| x)
-                .collect::<Vec<SearchResult>>();
+        let results = results
+            .enumerate()
+            .filter(|(i, _)| scores[*i].1 != 0)
+            .map(|(_, x)| x)
+            .collect::<Vec<SearchResult>>();
 
-            Ok(results)
-        }
+        Ok(results)
     }
 }
 

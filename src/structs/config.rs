@@ -16,6 +16,8 @@ pub struct Config {
     pub name: String,
     pub author: String,
     pub version: String,
+    pub summary: Option<String>,
+
     pub versions: ConfigVersions,
 }
 
@@ -29,7 +31,7 @@ impl Config {
     pub fn write(&self, path: PathBuf) -> Result<(), Error> {
         let content = toml::to_string(&self)?;
 
-        File::create(path)?.write(content.as_bytes())?;
+        File::create(path)?.write_all(content.as_bytes())?;
 
         Ok(())
     }

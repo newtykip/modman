@@ -20,7 +20,10 @@ fn main() -> Result<(), Error> {
 
     let command = Value::parse().command;
 
-    Ok(match command {
+    match command {
         Commands::Profile(subcommand) => profile::parse(subcommand)?,
-    })
+        Commands::Sync(subcommand) => sync::parse(subcommand)?,
+    }
+
+    Ok(())
 }

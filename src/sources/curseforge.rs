@@ -10,7 +10,6 @@ use furse::{
     },
     Furse,
 };
-use futures_util::Future;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rayon::prelude::*;
 use reqwest::Client;
@@ -41,7 +40,7 @@ fn construct_mod(
         data: Mod {
             name: project.name,
             filename: file.file_name.clone(),
-            url: file.download_url.clone().unwrap().to_string(),
+            url: file.download_url.clone().unwrap().into(),
             dependencies: file
                 .dependencies
                 .par_iter()
@@ -87,7 +86,7 @@ impl Mod {
         .await?["data"];
         let projects = search_results.as_array().expect("no results found");
 
-        if projects.len() == 0 {
+        if projects.is_empty() {
             return Ok(None);
         }
 
@@ -105,79 +104,72 @@ impl Mod {
                 .contains(&file.sortable_game_versions[1].game_version_name.as_str())
         });
 
-        Ok(if let Some(file) = file {
-            Some(construct_mod(project, file, furse, loader, game_versions))
-        } else {
-            None
-        })
+        Ok(file.map(|file| construct_mod(project, file, furse, loader, game_versions)))
     }
 
     /// Search for mods on Curseforge
-    pub fn search_curseforge<'a>(
-        query: &'a str,
+    pub async fn search_curseforge(
+        query: &str,
         loader: Loader,
         game_versions: GameVersions,
         client: Option<Client>,
-    ) -> impl Future<Output = Result<Vec<SearchResult>, Error>> + 'a {
-        async move {
-            let client = client.unwrap_or(Client::new());
+    ) -> Result<Vec<SearchResult>, Error> {
+        let client = client.unwrap_or(Client::new());
 
-            let search_results = make_request(
+        let search_results = make_request(
                 &client,
                 format!("mods/search?gameId=432&sortField=2&sortOrder=desc&pageSize=10&searchFilter=\"{query}\""),
             )
             .await?;
 
-            let search_results = search_results["data"].as_array();
+        let search_results = search_results["data"].as_array();
 
-            // ensure there are search results
-            if let None = search_results {
-                return Ok(vec![]);
+        // ensure there are search results
+        if search_results.is_none() {
+            return Ok(vec![]);
+        }
+
+        let search_results = search_results.unwrap();
+
+        // filter mods to those which have a version which supports both the given loader and game version
+        let filtered = search_results.iter().filter(|result| {
+            let indexes = result["latestFilesIndexes"].as_array().unwrap();
+
+            for index in indexes {
+                let mod_loader = if let Some(mod_loader) = index["modLoader"].as_u64() {
+                    loader.curseforge().contains(&(mod_loader as u8))
+                } else {
+                    false
+                };
+                let game_version = game_versions.contains(&index["gameVersion"].as_str().unwrap());
+
+                if mod_loader && game_version {
+                    return true;
+                }
             }
 
-            let search_results = search_results.unwrap();
+            false
+        });
 
-            // filter mods to those which have a version which supports both the given loader and game version
-            let filtered = search_results.iter().filter(|result| {
-                let indexes = result["latestFilesIndexes"].as_array().unwrap();
+        // fuzzy search!
+        let matcher = SkimMatcherV2::default();
+        let scores = filtered
+            .clone()
+            .map(|result| result["name"].as_str().unwrap())
+            .enumerate()
+            .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0)))
+            .collect::<Vec<(usize, i64)>>();
 
-                for index in indexes {
-                    let mod_loader = if let Some(mod_loader) = index["modLoader"].as_u64() {
-                        loader.curseforge().contains(&(mod_loader as u8))
-                    } else {
-                        false
-                    };
-                    let game_version =
-                        game_versions.contains(&index["gameVersion"].as_str().unwrap());
+        let results = filtered
+            .enumerate()
+            .filter(|(i, _)| scores[*i].1 != 0)
+            .map(|(_, result)| SearchResult {
+                name: result["name"].as_str().unwrap().into(),
+                id: result["slug"].as_str().unwrap().to_string(),
+            })
+            .collect::<Vec<SearchResult>>();
 
-                    if mod_loader && game_version {
-                        return true;
-                    }
-                }
-
-                false
-            });
-
-            // fuzzy search!
-            let matcher = SkimMatcherV2::default();
-            let scores = filtered
-                .clone()
-                .map(|result| result["name"].as_str().unwrap())
-                .enumerate()
-                .map(|(i, name)| (i, matcher.fuzzy_match(name, query).unwrap_or(0)))
-                .collect::<Vec<(usize, i64)>>();
-
-            let results = filtered
-                .enumerate()
-                .filter(|(i, _)| scores[*i].1 != 0)
-                .map(|(_, result)| SearchResult {
-                    name: result["name"].as_str().unwrap().to_string(),
-                    id: result["slug"].as_str().unwrap().to_string(),
-                })
-                .collect::<Vec<SearchResult>>();
-
-            Ok(results)
-        }
+        Ok(results)
     }
 }
 

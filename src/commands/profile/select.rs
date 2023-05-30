@@ -1,6 +1,5 @@
 use inquire::Select;
 use modman::{utils::success, Error, Profile};
-use owo_colors::OwoColorize;
 
 #[tokio::main]
 pub async fn execute() -> Result<(), Error> {
@@ -10,10 +9,7 @@ pub async fn execute() -> Result<(), Error> {
 
     selected.select()?;
 
-    success(&format!(
-        "Selected profile {}!",
-        selected.config.name.bold()
-    ));
+    success(&format!("Selected profile {}!", selected.config.name));
 
     Ok(())
 }

@@ -1,7 +1,6 @@
 use ferinth::Ferinth;
 use inquire::{validator::Validation, Select, Text};
 use modman::{utils::success, Config, ConfigVersions, Error, Loader, Profile};
-use owo_colors::OwoColorize;
 use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
 use reqwest::Client;
@@ -22,7 +21,7 @@ pub async fn execute() -> Result<(), Error> {
         .par_iter()
         .filter(|v| {
             v.major
-                && v.version.split(".").collect::<Vec<&str>>()[1]
+                && v.version.split('.').collect::<Vec<&str>>()[1]
                     .parse::<u8>()
                     .unwrap()
                     >= 7
@@ -37,7 +36,7 @@ pub async fn execute() -> Result<(), Error> {
         // 1. name of the modpack
         Text::new("What is the name of your modpack?")
             .with_validator(move |name: &str| {
-                if name.len() == 0 {
+                if name.is_empty() {
                     Ok(Validation::Invalid("Name can not be empty".into()))
                 } else if used_names.contains(&Profile::name_to_id(name)) {
                     Ok(Validation::Invalid("Name has already been used".into()))
@@ -90,17 +89,16 @@ pub async fn execute() -> Result<(), Error> {
 
     let loader_version: String = match mod_loader {
         Loader::Forge => loader_versions
-            .map(|v| v.split("-").collect::<Vec<&str>>())
+            .map(|v| v.split('-').collect::<Vec<&str>>())
             .filter(|v| v[0] == minecraft_version)
             .collect::<Vec<Vec<&str>>>()
             .first()
             .unwrap()
-            .join("-")
-            .to_string(),
+            .join("-"),
         _ => {
             let mut loader_versions = loader_versions
-                .filter(|v| v.split(".").collect::<Vec<&str>>().len() <= 3)
-                .map(|v| v.to_string())
+                .filter(|v| v.split('.').collect::<Vec<&str>>().len() <= 3)
+                .map(|v| v.into())
                 .collect::<Vec<String>>();
 
             loader_versions.reverse();
@@ -109,11 +107,19 @@ pub async fn execute() -> Result<(), Error> {
         }
     };
 
+    // 6. a brief description of the modpack
+    let description = Text::new("Give a brief description of your modpack").prompt()?;
+
     // write all of this data into the schema
     let config = Config {
         name: name.clone(),
         author,
         version,
+        summary: if description.is_empty() {
+            None
+        } else {
+            Some(description)
+        },
         versions: ConfigVersions {
             minecraft: minecraft_version,
             forge: if mod_loader == Loader::Forge {
@@ -127,7 +133,7 @@ pub async fn execute() -> Result<(), Error> {
                 None
             },
             quilt: if mod_loader == Loader::Quilt {
-                Some(loader_version.clone())
+                Some(loader_version)
             } else {
                 None
             },
@@ -140,7 +146,7 @@ pub async fn execute() -> Result<(), Error> {
 
     success(&format!(
         "Created profile {} successfully! It has now been selected.",
-        name.bold()
+        name
     ));
 
     Ok(())

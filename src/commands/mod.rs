@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 pub mod profile;
+pub mod sync;
 
 #[derive(Parser)]
 #[clap(version)]
@@ -13,4 +14,7 @@ pub struct Value {
 pub enum Commands {
     /// Manage your profiles
     Profile(profile::Command),
+
+    /// Synchronize your profiles
+    Sync(sync::Command),
 }
