@@ -1099,6 +1099,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
+ "url",
 ]
 
 [[package]]

@@ -47,7 +47,7 @@ pub async fn execute() -> Result<(), Error> {
             .prompt()?,
         // 2. author of the modpack
         Text::new("Who is the author of this modpack?")
-            .with_default(std::env::var("USER").unwrap().as_str())
+            .with_default(std::env::var("USER")?.as_str())
             .prompt()?,
         // 3. version of the modpack
         Text::new("What is the version of this modpack?")

@@ -48,7 +48,7 @@ impl Profile {
 
         // ensure that the profile's directory exists
         if !directory.exists() {
-            std::fs::create_dir_all(directory.clone()).unwrap();
+            std::fs::create_dir_all(directory.clone())?;
         }
 
         // create the profile.toml file
@@ -86,8 +86,7 @@ impl Profile {
     pub fn load_all() -> Result<Vec<Self>, Error> {
         let profile_directory = Profile::directory(None);
 
-        Ok(fs::read_dir(profile_directory)
-            .unwrap()
+        Ok(fs::read_dir(profile_directory)?
             .map(|entry| {
                 let directory = entry.unwrap().path();
                 let config = Config::load(directory.join("profile.toml")).unwrap();

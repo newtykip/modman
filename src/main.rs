@@ -14,8 +14,8 @@ fn main() -> Result<(), Error> {
     let modman = modman_dir();
 
     if !modman.exists() {
-        fs::create_dir_all(&modman).unwrap();
-        fs::File::create(modman.join(".selected")).unwrap();
+        fs::create_dir_all(&modman)?;
+        fs::File::create(modman.join(".selected"))?;
     }
 
     let command = Value::parse().command;
