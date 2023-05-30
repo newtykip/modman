@@ -23,7 +23,7 @@ pub async fn execute(args: Args) -> Result<(), Error> {
 Author: {}
 Version: {}
 
-Repository intialized: {}",
+Sync initialized: {}",
         underline(&bold(&config.name)),
         if let Some(summary) = config.summary {
             format!("\n{}\n", summary)
@@ -41,7 +41,7 @@ Repository intialized: {}",
 
     // print repository info if it exists
     if let Some(repo) = repo {
-        let remote_url = {
+        let destination_url = {
             let remote = repo.find_remote("origin");
 
             match remote {
@@ -58,12 +58,12 @@ Repository intialized: {}",
 
         let recent_commit = revwalk.nth(0).map(|oid| repo.find_commit(oid.unwrap()));
 
-        let commit_message: String = match &recent_commit {
+        let save_message: String = match &recent_commit {
             Some(Ok(commit)) => commit.message().unwrap().trim().into(),
             _ => "N/A".into(),
         };
 
-        let comitted_at = match &recent_commit {
+        let saved_at = match &recent_commit {
             Some(Ok(commit)) => {
                 let time = commit.time();
                 let ms = 1000 * (time.seconds() + (time.offset_minutes() * 60) as i64);
@@ -75,12 +75,12 @@ Repository intialized: {}",
         };
 
         println!(
-            "Remote: {}
-Recent Commit: {}
-Comitted At: {}",
-            remote_url,
-            bold(&commit_message),
-            comitted_at
+            "Destination: {}
+Saved At: {}
+Message: {}",
+            destination_url,
+            saved_at,
+            bold(&save_message),
         );
     }
 

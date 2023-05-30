@@ -1,6 +1,13 @@
 use clap::Args as ClapArgs;
-use inquire::{validator::Validation, Text};
-use modman::{utils::success, Error, Profile};
+use git2::{Direction, Repository};
+use inquire::{
+    validator::{ErrorMessage, Validation},
+    Text,
+};
+use modman::{
+    utils::{error, success},
+    Error, Profile,
+};
 use url::Url;
 
 #[derive(ClapArgs)]
@@ -8,13 +15,34 @@ pub struct Args {
     url: Option<String>,
 }
 
+fn is_valid_remote(repo: Repository, url: &str) -> Result<bool, Error> {
+    let mut remote = repo.remote_anonymous(url)?;
+    let connection = remote.connect_auth(Direction::Fetch, None, None);
+
+    if connection.is_err() {
+        return Ok(false);
+    } else {
+        Ok(!connection?.list()?.is_empty())
+    }
+}
+
+fn validate_url(url: &str) -> bool {
+    Url::parse(url).is_ok()
+}
+
 #[tokio::main]
 pub async fn execute(profile: Profile, args: Args) -> Result<(), Error> {
-    // ? is it a valid git remote url?
-    let url = args.url.unwrap_or_else(|| {
+    // we know that the profile has a repo because we checked in the prelude
+    let repo = profile.repo.unwrap();
+    let profile_path = profile.path.clone();
+
+    // ensure that the url is valid
+    let url = args.url.clone().unwrap_or_else(|| {
         Text::new("Enter the URL of the repository you want to sync to")
-            .with_validator(|u: &str| {
-                if Url::parse(u).is_ok() {
+            .with_validator(move |url: &str| {
+                let repo = Repository::open(profile.path.clone())?;
+
+                if validate_url(url) && is_valid_remote(repo, url).unwrap() {
                     Ok(Validation::Valid)
                 } else {
                     Ok(Validation::Invalid(
@@ -26,8 +54,21 @@ pub async fn execute(profile: Profile, args: Args) -> Result<(), Error> {
             .unwrap()
     });
 
-    // we know the repo is defined thanks to the prelude so this is fine
-    profile.repo.unwrap().remote("origin", &url)?;
+    if args.url.is_some()
+        && (!validate_url(&url) || !is_valid_remote(Repository::open(profile_path)?, &url)?)
+    {
+        error("The URL you entered is invalid!");
+        return Ok(());
+    }
+
+    // check if there is already a remote on the repo
+    let remote_exists = !repo.remotes()?.is_empty();
+
+    if remote_exists {
+        repo.remote_set_url("origin", &url)?;
+    } else {
+        repo.remote("origin", &url)?;
+    }
 
     success(&format!(
         "Successfully set sync destination for profile {}!",
