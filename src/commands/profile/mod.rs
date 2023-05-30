@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use modman::Error;
 
 pub mod create;
+pub mod select;
 
 #[derive(Parser)]
 pub struct Command {
@@ -13,6 +14,9 @@ pub struct Command {
 pub enum Subcommands {
     /// Create a new profile
     Create,
+
+    /// Select a profile
+    Select,
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
@@ -20,5 +24,6 @@ pub fn parse(command: Command) -> Result<(), Error> {
 
     Ok(match subcommand {
         Subcommands::Create => create::execute()?,
+        Subcommands::Select => select::execute()?,
     })
 }

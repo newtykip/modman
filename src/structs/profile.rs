@@ -1,10 +1,10 @@
 use crate::{utils::modman_dir, Error};
 
 use super::Config;
-use std::{fs, path::PathBuf};
+use std::{fmt::Display, fs, path::PathBuf};
 
 pub struct Profile {
-    config: Config,
+    pub config: Config,
 }
 
 impl Profile {
@@ -51,6 +51,8 @@ impl Profile {
         // create the profile.toml file
         config.write(profile_directory.join("profile.toml"))?;
 
+        // select the profile
+
         Ok(Self { config })
     }
 
@@ -61,5 +63,34 @@ impl Profile {
         Ok(Self {
             config: Config::load(profile_directory.join("profile.toml"))?,
         })
+    }
+
+    /// Load all profiles
+    pub fn load_all() -> Result<Vec<Self>, Error> {
+        let profile_directory = Profile::directory(None);
+
+        Ok(fs::read_dir(profile_directory)
+            .unwrap()
+            .map(|entry| {
+                let path = entry.unwrap().path();
+                let config = Config::load(path.join("profile.toml")).unwrap();
+                Self { config }
+            })
+            .collect())
+    }
+
+    pub fn select(&self) -> Result<(), Error> {
+        fs::write(
+            modman_dir().join(".selected"),
+            Profile::name_to_id(&self.config.name),
+        )?;
+
+        Ok(())
+    }
+}
+
+impl Display for Profile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.config.name)
     }
 }

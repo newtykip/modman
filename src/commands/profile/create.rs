@@ -1,6 +1,7 @@
 use ferinth::Ferinth;
 use inquire::{validator::Validation, Select, Text};
-use modman::{Config, ConfigVersions, Error, Loader, Profile};
+use modman::{utils::success, Config, ConfigVersions, Error, Loader, Profile};
+use owo_colors::OwoColorize;
 use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
 use reqwest::Client;
@@ -54,7 +55,7 @@ pub async fn execute() -> Result<(), Error> {
             .with_default("1.0.0")
             .prompt()?,
         // 4. the game version the modpack should run on
-        Select::new("What Minecraft version do you want to use?", game_versions).prompt()?,
+        Select::new("Which Minecraft version do you want to use?", game_versions).prompt()?,
     );
 
     // 5. the mod loader the modpack should run on
@@ -134,7 +135,13 @@ pub async fn execute() -> Result<(), Error> {
     };
 
     // Create the profile
-    Profile::new(config)?;
+    let profile = Profile::new(config)?;
+    profile.select()?;
+
+    success(&format!(
+        "Created profile {} successfully! It has now been selected.",
+        name.bold()
+    ));
 
     Ok(())
 }
