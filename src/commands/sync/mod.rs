@@ -17,7 +17,7 @@ pub enum Subcommands {
 
     /// Set the destination for the sync
     #[clap(alias = "dest")]
-    Destination,
+    Destination(destination::Args),
 }
 
 fn prelude() -> Result<Option<Profile>, Error> {
@@ -40,11 +40,11 @@ pub fn parse(command: Command) -> Result<(), Error> {
 
     match subcommand {
         Subcommands::Init => init::execute()?,
-        Subcommands::Destination => {
+        Subcommands::Destination(args) => {
             let profile = prelude()?;
 
             if let Some(profile) = profile {
-                destination::execute(profile)?;
+                destination::execute(profile, args)?;
             }
         }
     }

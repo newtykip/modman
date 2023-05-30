@@ -1,14 +1,25 @@
-use std::path::PathBuf;
-
 use owo_colors::{
-    colors::{Green, Red, Yellow},
+    colors::{css::LightBlue, Green, Red, Yellow},
     Color, OwoColorize,
     Stream::Stdout,
 };
+use std::path::PathBuf;
 
-fn colour<T: Color>(message: &str) -> String {
+pub fn colour<T: Color>(message: &str) -> String {
     message
         .if_supports_color(Stdout, |text| text.fg::<T>())
+        .to_string()
+}
+
+pub fn bold(message: &str) -> String {
+    message
+        .if_supports_color(Stdout, |text| text.bold())
+        .to_string()
+}
+
+pub fn underline(message: &str) -> String {
+    message
+        .if_supports_color(Stdout, |text| text.underline())
         .to_string()
 }
 
@@ -22,6 +33,10 @@ pub fn alert(message: &str) {
 
 pub fn error(message: &str) {
     println!("{}", colour::<Red>(message));
+}
+
+pub fn url(url: &str) -> String {
+    underline(&colour::<LightBlue>(url))
 }
 
 pub fn modman_dir() -> PathBuf {
