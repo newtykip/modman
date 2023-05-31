@@ -23,6 +23,7 @@ fn main() -> Result<(), Error> {
     match command {
         Commands::Profile(subcommand) => profile::parse(subcommand)?,
         Commands::Sync(subcommand) => sync::parse(subcommand)?,
+        Commands::Add(subcommand) => add::parse(subcommand)?,
     }
 
     Ok(())

@@ -1,13 +1,26 @@
-use crate::{utils::modman_dir, Error};
+use crate::{utils::modman_dir, ConfigVersions, Error, Loader};
 
 use super::Config;
 use git2::Repository;
 use std::{fmt::Display, fs, path::PathBuf};
 
+fn determine_loader(versions: &ConfigVersions) -> Option<Loader> {
+    if versions.fabric.is_some() {
+        Some(Loader::Fabric)
+    } else if versions.forge.is_some() {
+        Some(Loader::Forge)
+    } else if versions.quilt.is_some() {
+        Some(Loader::Quilt)
+    } else {
+        None
+    }
+}
+
 pub struct Profile {
     pub config: Config,
     pub path: PathBuf,
     pub repo: Option<Repository>,
+    pub loader: Loader,
 }
 
 impl Profile {
@@ -44,41 +57,49 @@ impl Profile {
 
     /// Create a new profile
     pub fn new(config: Config) -> Result<Self, Error> {
-        let directory = Profile::directory(Some(&Self::name_to_id(&config.name)));
+        let path = Profile::directory(Some(&Self::name_to_id(&config.name)));
 
-        // ensure that the profile's directory exists
-        if !directory.exists() {
-            std::fs::create_dir_all(directory.clone())?;
+        // ensure that the profile's mods directory exists
+        if !path.exists() {
+            std::fs::create_dir_all(path.clone().join("mods"))?;
         }
 
         // create the profile.toml file
-        config.write(directory.join("profile.toml"))?;
+        config.write(path.join("profile.toml"))?;
+
+        // resolve the loader
+        let loader = determine_loader(&config.versions).unwrap();
 
         // create a git repository
-        let repository = match Repository::init(&directory) {
+        let repo = match Repository::init(&path) {
             Ok(repo) => Some(repo),
             Err(_) => None,
         };
 
         Ok(Self {
             config,
-            path: directory,
-            repo: repository,
+            path,
+            repo,
+            loader,
         })
     }
 
     /// Load a profile
     pub fn load(id: &str) -> Result<Self, Error> {
-        let directory = Profile::directory(Some(id));
-        let repository = match Repository::open(&directory) {
+        let path = Profile::directory(Some(id));
+        let repo = match Repository::open(&path) {
             Ok(repo) => Some(repo),
             Err(_) => None,
         };
 
+        let config = Config::load(path.join("profile.toml"))?;
+        let loader = determine_loader(&config.versions).unwrap();
+
         Ok(Self {
-            config: Config::load(directory.join("profile.toml"))?,
-            path: directory,
-            repo: repository,
+            config,
+            path,
+            repo,
+            loader,
         })
     }
 
@@ -88,17 +109,19 @@ impl Profile {
 
         Ok(fs::read_dir(profile_directory)?
             .map(|entry| {
-                let directory = entry.unwrap().path();
-                let config = Config::load(directory.join("profile.toml")).unwrap();
-                let repository = match Repository::open(&directory) {
+                let path = entry.unwrap().path();
+                let config = Config::load(path.join("profile.toml")).unwrap();
+                let repo = match Repository::open(&path) {
                     Ok(repo) => Some(repo),
                     Err(_) => None,
                 };
+                let loader = determine_loader(&config.versions).unwrap();
 
                 Self {
                     config,
-                    path: directory,
-                    repo: repository,
+                    path,
+                    repo,
+                    loader,
                 }
             })
             .collect())

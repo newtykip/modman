@@ -1,9 +1,6 @@
 use clap::Args as ClapArgs;
 use git2::{Direction, Repository};
-use inquire::{
-    validator::{ErrorMessage, Validation},
-    Text,
-};
+use inquire::{validator::Validation, Text};
 use modman::{
     utils::{error, success},
     Error, Profile,

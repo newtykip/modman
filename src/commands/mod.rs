@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+pub mod add;
 pub mod profile;
 pub mod sync;
 
@@ -17,4 +18,7 @@ pub enum Commands {
 
     /// Synchronize your profiles
     Sync(sync::Command),
+
+    /// Add mods to a profile
+    Add(add::Command),
 }

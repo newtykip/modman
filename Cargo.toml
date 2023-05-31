@@ -6,8 +6,7 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.26"
 clap = { version = "4.2.1", features = ["derive"] }
-ferinth = "2.7.4"
-furse = "1.5.9"
+ferinth = "2.8.0"
 fuzzy-matcher = "0.3.7"
 git2 = "0.17.2"
 home = "0.5.4"
