@@ -17,7 +17,7 @@ fn is_valid_remote(repo: Repository, url: &str) -> Result<bool, Error> {
     let connection = remote.connect_auth(Direction::Fetch, None, None);
 
     if connection.is_err() {
-        return Ok(false);
+        Ok(false)
     } else {
         Ok(!connection?.list()?.is_empty())
     }

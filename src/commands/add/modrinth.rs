@@ -1,6 +1,6 @@
 use crate::Error;
 use clap::Args as ClapArgs;
-use inquire::Select;
+use inquire::{Confirm, Select};
 use modman::{ModrinthMod, Profile};
 
 #[derive(ClapArgs)]
@@ -26,19 +26,30 @@ pub async fn execute(args: Args) -> Result<(), Error> {
         Select::new("Please select a mod", results).prompt()?
     };
 
-    let mcmod = ModrinthMod::new(
+    let mcmod = ModrinthMod::from_project(
         selected_mod.id,
         selected_profile.loader,
         vec![&selected_profile.config.versions.minecraft],
     )
     .await?;
 
-    mcmod.data.write(
-        selected_profile
-            .path
-            .join("mods")
-            .join(format!("{}.mm.toml", mcmod.data.slug)),
-    )?;
+    // ask if dependencies should be installed
+    let dependencies = mcmod.resolve_dependencies(true).await?;
+
+    if !dependencies.is_empty() {
+        println!("The following dependencies have been found:");
+        for dependency in &dependencies {
+            println!("  {}", dependency.data.name);
+        }
+
+        if Confirm::new("Would you like to add them?").prompt()? {
+            for dependency in dependencies {
+                selected_profile.add_mod(dependency.data)?;
+            }
+        }
+    }
+
+    selected_profile.add_mod(mcmod.data)?;
 
     Ok(())
 }

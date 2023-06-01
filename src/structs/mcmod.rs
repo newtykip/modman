@@ -2,9 +2,17 @@ use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
 use serde::Serialize;
 
-use crate::Error;
+use crate::{Error, Loader};
 
 pub type GameVersions<'t> = Vec<&'t str>;
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub enum DependencyType {
+    Required,
+    Optional,
+    Incompatible,
+    Embedded,
+}
 
 #[derive(Debug, Clone)]
 pub struct SearchResult {
@@ -18,7 +26,7 @@ impl Display for SearchResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Hash, PartialEq)]
 pub enum Side {
     Client,
     Server,
@@ -35,20 +43,22 @@ impl Serialize for Side {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub struct Download {
     pub url: String,
     pub hash_format: String,
     pub hash: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
 pub struct Mod {
     pub name: String,
     #[serde(skip_serializing)]
     pub slug: String,
     pub filename: String,
     pub side: Side,
+    #[serde(skip_serializing)]
+    pub loader: Loader,
 
     pub download: Download,
 }

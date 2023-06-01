@@ -1,6 +1,6 @@
 use crate::{utils::modman_dir, ConfigVersions, Error, Loader};
 
-use super::Config;
+use super::{mcmod::Mod, Config};
 use git2::Repository;
 use std::{fmt::Display, fs, path::PathBuf};
 
@@ -61,7 +61,7 @@ impl Profile {
 
         // ensure that the profile's mods directory exists
         if !path.exists() {
-            std::fs::create_dir_all(path.clone().join("mods"))?;
+            std::fs::create_dir_all(path.join("mods"))?;
         }
 
         // create the profile.toml file
@@ -138,6 +138,16 @@ impl Profile {
         fs::write(
             modman_dir().join(".selected"),
             Profile::name_to_id(&self.config.name),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn add_mod(&self, mcmod: Mod) -> Result<(), Error> {
+        mcmod.write(
+            self.path
+                .join("mods")
+                .join(format!("{}.mm.toml", mcmod.slug)),
         )?;
 
         Ok(())

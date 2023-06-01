@@ -1,5 +1,8 @@
-use super::mcmod::{Download, GameVersions, Mod, SearchResult, Side};
+use std::collections::HashSet;
+
+use super::mcmod::{DependencyType, Download, GameVersions, Mod, SearchResult, Side};
 use crate::{Error, Loader};
+use async_recursion::async_recursion;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rayon::prelude::*;
 use reqwest::Client;
@@ -7,17 +10,37 @@ use serde_json::Value;
 
 const BASE_URL: &str = "https://api.modrinth.com/v2";
 
-#[derive(Debug)]
+fn map_dependency(value: &Value) -> ModrinthDependency {
+    ModrinthDependency {
+        version_id: value["version_id"].as_str().unwrap().into(),
+        dependency_type: match value["dependency_type"].as_str().unwrap() {
+            "required" => DependencyType::Required,
+            "optional" => DependencyType::Optional,
+            "incompatible" => DependencyType::Incompatible,
+            "embedded" => DependencyType::Embedded,
+            _ => unreachable!(),
+        },
+    }
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub struct ModrinthDependency {
+    version_id: String,
+    dependency_type: DependencyType,
+}
+
+#[derive(Debug, Eq, Hash, PartialEq)]
 pub struct ModrinthMod {
     pub data: Mod,
+    dependencies_unresolved: Vec<ModrinthDependency>,
 }
 
 impl ModrinthMod {
     // todo: build this functionality into ferinth itself :]
-    pub async fn search<'t>(
+    pub async fn search(
         query: String,
         loader: Loader,
-        game_versions: GameVersions<'t>,
+        game_versions: GameVersions<'_>,
     ) -> Result<Vec<SearchResult>, Error> {
         // search on the api
         let results = reqwest::get(format!(
@@ -68,10 +91,10 @@ impl ModrinthMod {
         Ok(results)
     }
 
-    pub async fn new<'t>(
+    pub async fn from_project(
         project_id: String,
         loader: Loader,
-        game_versions: GameVersions<'t>,
+        game_versions: GameVersions<'_>,
     ) -> Result<ModrinthMod, Error> {
         let client = Client::new();
 
@@ -107,20 +130,23 @@ impl ModrinthMod {
             .json::<Value>()
             .await?;
 
-        let client_side = project["client_side"].as_str().unwrap();
-        let server_side = project["server_side"].as_str().unwrap();
+        let side = match (
+            project["client_side"].as_str().unwrap(),
+            project["server_side"].as_str().unwrap(),
+        ) {
+            ("required", "required") => Side::Both,
+            (_, "required") => Side::Server,
+            ("required", _) => Side::Client,
+            _ => Side::Client,
+        };
 
         Ok(ModrinthMod {
             data: Mod {
                 name: project["title"].as_str().unwrap().into(),
                 slug: project["slug"].as_str().unwrap().into(),
                 filename: latest["files"][0]["filename"].as_str().unwrap().into(),
-                side: match (client_side, server_side) {
-                    ("required", "required") => Side::Both,
-                    (_, "required") => Side::Server,
-                    ("required", _) => Side::Client,
-                    _ => Side::Client,
-                },
+                side,
+                loader,
                 download: Download {
                     url: latest["files"][0]["url"].as_str().unwrap().into(),
                     hash_format: "sha1".into(),
@@ -130,8 +156,86 @@ impl ModrinthMod {
                         .into(),
                 },
             },
+            dependencies_unresolved: latest["dependencies"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(map_dependency)
+                .collect(),
         })
     }
 
-    // todo: resolve dependencies
+    #[async_recursion]
+    pub async fn resolve_dependencies(
+        &self,
+        optional: bool,
+    ) -> Result<HashSet<ModrinthMod>, Error> {
+        let mut resolved: HashSet<ModrinthMod> = HashSet::new();
+
+        // todo: replace fabric api with quilted fabric api when loader is quilt
+        for dependency in &self.dependencies_unresolved {
+            match dependency.dependency_type {
+                DependencyType::Optional if !optional => continue,
+                DependencyType::Incompatible => continue,
+                _ => {}
+            }
+
+            let version = reqwest::get(format!("{}/version/{}", BASE_URL, dependency.version_id))
+                .await?
+                .json::<Value>()
+                .await?;
+
+            let project = reqwest::get(format!(
+                "{}/project/{}",
+                BASE_URL,
+                version["project_id"].as_str().unwrap()
+            ))
+            .await?
+            .json::<Value>()
+            .await?;
+
+            let side = match (
+                project["client_side"].as_str().unwrap(),
+                project["server_side"].as_str().unwrap(),
+            ) {
+                ("required", "required") => Side::Both,
+                (_, "required") => Side::Server,
+                ("required", _) => Side::Client,
+                _ => Side::Client,
+            };
+
+            let loader = match version["loaders"][0].as_str().unwrap() {
+                "forge" => Loader::Forge,
+                "fabric" => Loader::Fabric,
+                "quilt" => Loader::Quilt,
+                _ => unreachable!(),
+            };
+
+            resolved.insert(ModrinthMod {
+                data: Mod {
+                    name: project["title"].as_str().unwrap().into(),
+                    slug: project["slug"].as_str().unwrap().into(),
+                    filename: version["files"][0]["filename"].as_str().unwrap().into(),
+                    side,
+                    loader,
+                    download: Download {
+                        url: version["files"][0]["url"].as_str().unwrap().into(),
+                        hash_format: "sha1".into(),
+                        hash: version["files"][0]["hashes"]["sha1"]
+                            .as_str()
+                            .unwrap()
+                            .into(),
+                    },
+                },
+                dependencies_unresolved: version["dependencies"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(map_dependency)
+                    .collect(),
+            });
+        }
+
+        Ok(resolved)
+    }
 }

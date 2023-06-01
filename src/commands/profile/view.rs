@@ -45,7 +45,7 @@ Sync initialized: {}",
             let remote = repo.find_remote("origin");
 
             match remote {
-                Ok(remote) => remote.url().map(|x| url(x)).unwrap_or_else(|| bold("N/A")),
+                Ok(remote) => remote.url().map(url).unwrap_or_else(|| bold("N/A")),
                 Err(_) => bold("N/A"),
             }
         };
@@ -56,7 +56,7 @@ Sync initialized: {}",
         revwalk.set_sorting(git2::Sort::TIME)?;
         revwalk.push_head()?;
 
-        let recent_commit = revwalk.nth(0).map(|oid| repo.find_commit(oid.unwrap()));
+        let recent_commit = revwalk.next().map(|oid| repo.find_commit(oid.unwrap()));
 
         let save_message: String = match &recent_commit {
             Some(Ok(commit)) => commit.message().unwrap().trim().into(),

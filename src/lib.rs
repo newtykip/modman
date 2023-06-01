@@ -8,7 +8,7 @@ pub use structs::{Config, ConfigVersions, ModrinthMod, Profile};
 pub type Error = Box<dyn std::error::Error>;
 
 /// Supported mod loaders
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Loader {
     Forge,
     Fabric,
