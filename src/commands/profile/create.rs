@@ -1,6 +1,9 @@
 use ferinth::Ferinth;
 use inquire::{validator::Validation, Select, Text};
-use modman::{utils::success, Config, ConfigVersions, Error, Loader, Profile};
+use modman::{
+    utils::{create_slug, success},
+    Config, ConfigVersions, Error, Loader, Profile,
+};
 use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
 use reqwest::Client;
@@ -39,7 +42,7 @@ pub async fn execute() -> Result<(), Error> {
             .with_validator(move |name: &str| {
                 if name.is_empty() {
                     Ok(Validation::Invalid("Name can not be empty".into()))
-                } else if used_names.contains(&Profile::name_to_id(name)) {
+                } else if used_names.contains(&create_slug(name)) {
                     Ok(Validation::Invalid("Name has already been used".into()))
                 } else {
                     Ok(Validation::Valid)

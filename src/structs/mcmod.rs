@@ -27,28 +27,28 @@ impl Display for SearchResult {
 }
 
 #[derive(Debug, Eq, Hash, PartialEq)]
-pub enum Side {
+pub enum ModSide {
     Client,
     Server,
     Both,
 }
 
-impl Serialize for Side {
+impl Serialize for ModSide {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
-            Side::Client => serializer.serialize_str("client"),
-            Side::Server => serializer.serialize_str("server"),
-            Side::Both => serializer.serialize_str("both"),
+            ModSide::Client => serializer.serialize_str("client"),
+            ModSide::Server => serializer.serialize_str("server"),
+            ModSide::Both => serializer.serialize_str("both"),
         }
     }
 }
 
-impl<'de> Deserialize<'de> for Side {
+impl<'de> Deserialize<'de> for ModSide {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match String::deserialize(deserializer)?.as_str() {
-            "client" => Ok(Side::Client),
-            "server" => Ok(Side::Server),
-            "both" => Ok(Side::Both),
+            "client" => Ok(ModSide::Client),
+            "server" => Ok(ModSide::Server),
+            "both" => Ok(ModSide::Both),
             _ => Err(serde::de::Error::custom("invalid side")),
         }
     }
@@ -58,7 +58,9 @@ impl<'de> Deserialize<'de> for Side {
 pub struct Download {
     pub url: String,
     pub hash_format: String,
-    pub hash: String,
+    pub sha1: String,
+    pub sha512: String,
+    pub file_size: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
@@ -68,7 +70,7 @@ pub struct Mod {
     pub slug: String,
     pub filename: String,
     pub version: String,
-    pub side: Side,
+    pub side: ModSide,
 
     pub download: Download,
 }

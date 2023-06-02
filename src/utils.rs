@@ -46,3 +46,7 @@ pub fn url(url: &str) -> String {
 pub fn modman_dir() -> PathBuf {
     home::home_dir().unwrap().join(".modman")
 }
+
+pub fn create_slug(data: &str) -> String {
+    data.to_lowercase().replace(' ', "-")
+}

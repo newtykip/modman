@@ -10,3 +10,5 @@ a packwiz alternative written in rust.
 - hash checking
 - modpack branches
 - license compiler
+- web-based modpack compiler
+- resource pack + mod config support (overrides)

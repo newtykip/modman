@@ -13,8 +13,10 @@ pub struct Value {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Manage your profiles
+    #[clap(alias = "p")]
     Profile(profile::Command),
 
     /// Manage modrinth-based mods
+    #[clap(alias = "mr")]
     Modrinth(modrinth::Command),
 }

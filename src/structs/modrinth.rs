@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::mcmod::{DependencyType, Download, GameVersions, Mod, SearchResult, Side};
+use super::mcmod::{DependencyType, Download, GameVersions, Mod, ModSide, SearchResult};
 use crate::{Error, Loader};
 use async_recursion::async_recursion;
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
@@ -134,10 +134,10 @@ impl ModrinthMod {
             project["client_side"].as_str().unwrap(),
             project["server_side"].as_str().unwrap(),
         ) {
-            ("required", "required") => Side::Both,
-            (_, "required") => Side::Server,
-            ("required", _) => Side::Client,
-            _ => Side::Client,
+            ("required", "required") => ModSide::Both,
+            (_, "required") => ModSide::Server,
+            ("required", _) => ModSide::Client,
+            _ => ModSide::Client,
         };
 
         Ok(ModrinthMod {
@@ -150,10 +150,15 @@ impl ModrinthMod {
                 download: Download {
                     url: latest["files"][0]["url"].as_str().unwrap().into(),
                     hash_format: "sha1".into(),
-                    hash: latest["files"][0]["hashes"]["sha1"]
+                    sha1: latest["files"][0]["hashes"]["sha1"]
                         .as_str()
                         .unwrap()
                         .into(),
+                    sha512: latest["files"][0]["hashes"]["sha512"]
+                        .as_str()
+                        .unwrap()
+                        .into(),
+                    file_size: latest["files"][0]["size"].as_u64().unwrap(),
                 },
             },
             dependencies_unresolved: latest["dependencies"]
@@ -174,6 +179,7 @@ impl ModrinthMod {
 
         // todo: replace fabric api with quilted fabric api when loader is quilt
         // todo: handle case when dependency.version_id is undefined
+        // todo: ensure that mods that have already been installed are ignored
         for dependency in &self.dependencies_unresolved {
             // for now only process the dependency if version_id is defined
             if dependency.version_id.is_none() {
@@ -208,10 +214,10 @@ impl ModrinthMod {
                 project["client_side"].as_str().unwrap(),
                 project["server_side"].as_str().unwrap(),
             ) {
-                ("required", "required") => Side::Both,
-                (_, "required") => Side::Server,
-                ("required", _) => Side::Client,
-                _ => Side::Client,
+                ("required", "required") => ModSide::Both,
+                (_, "required") => ModSide::Server,
+                ("required", _) => ModSide::Client,
+                _ => ModSide::Client,
             };
 
             resolved.insert(ModrinthMod {
@@ -224,10 +230,15 @@ impl ModrinthMod {
                     download: Download {
                         url: version["files"][0]["url"].as_str().unwrap().into(),
                         hash_format: "sha1".into(),
-                        hash: version["files"][0]["hashes"]["sha1"]
+                        sha1: version["files"][0]["hashes"]["sha1"]
                             .as_str()
                             .unwrap()
                             .into(),
+                        sha512: version["files"][0]["hashes"]["sha512"]
+                            .as_str()
+                            .unwrap()
+                            .into(),
+                        file_size: version["files"][0]["size"].as_u64().unwrap(),
                     },
                 },
                 dependencies_unresolved: version["dependencies"]

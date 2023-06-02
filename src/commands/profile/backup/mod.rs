@@ -14,10 +14,11 @@ pub struct Command {
 #[derive(Subcommand)]
 pub enum Subcommands {
     /// Set the destination for syncing your selected profile
-    #[clap(alias = "dest")]
+    #[clap(aliases = &["d", "dest", "remote"])]
     Destination(destination::Args),
 
     /// Save the state of the current profile
+    #[clap(aliases = &["s"])]
     Save,
 }
 

@@ -1,4 +1,7 @@
-use crate::{utils::modman_dir, ConfigVersions, Error, Loader};
+use crate::{
+    utils::{create_slug, modman_dir},
+    ConfigVersions, Error, Loader,
+};
 
 use super::{mcmod::Mod, Config};
 use git2::{Repository, RepositoryInitOptions};
@@ -24,11 +27,6 @@ pub struct Profile {
 }
 
 impl Profile {
-    /// Convert a name to an id
-    pub fn name_to_id(name: &str) -> String {
-        name.to_lowercase().replace(' ', "-")
-    }
-
     /// Get the directory of the profiles
     pub fn directory(id: Option<&str>) -> PathBuf {
         let profiles = modman_dir().join("profiles");
@@ -57,7 +55,7 @@ impl Profile {
 
     /// Create a new profile
     pub fn new(config: Config) -> Result<Self, Error> {
-        let path = Profile::directory(Some(&Self::name_to_id(&config.name)));
+        let path = Profile::directory(Some(&create_slug(&config.name)));
 
         // ensure that the profile's mods directory exists
         if !path.exists() {
@@ -138,7 +136,7 @@ impl Profile {
     pub fn select(&self) -> Result<(), Error> {
         fs::write(
             modman_dir().join(".selected"),
-            Profile::name_to_id(&self.config.name),
+            create_slug(&self.config.name),
         )?;
 
         Ok(())
@@ -152,6 +150,18 @@ impl Profile {
         )?;
 
         Ok(())
+    }
+
+    pub fn get_mods(&self) -> Result<Vec<Mod>, Error> {
+        Ok(fs::read_dir(&self.path.join("mods"))?
+            .map(|entry| {
+                let path = entry.unwrap().path();
+                let contents = fs::read_to_string(&path).unwrap();
+                let mcmod = toml::from_str(&contents).unwrap();
+
+                mcmod
+            })
+            .collect())
     }
 }
 

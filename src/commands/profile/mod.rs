@@ -15,17 +15,23 @@ pub struct Command {
 #[derive(Subcommand)]
 pub enum Subcommands {
     /// Create a new profile
+    #[clap(aliases = &["c", "new"])]
     Create,
 
     /// Select a profile
+    #[clap(aliases = &["s", "choose"])]
     Select,
 
     /// Backup your profiles using git
+    #[clap(aliases = &["b", "sync"])]
     Backup(backup::Command),
 
     /// View a profile
-    #[clap(alias = "current")]
+    #[clap(aliases = &["v", "current"])]
     View(view::Args),
+    // todo: Modify
+
+    // todo: Delete
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
