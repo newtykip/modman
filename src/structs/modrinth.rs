@@ -36,7 +36,7 @@ pub struct ModrinthMod {
 }
 
 impl ModrinthMod {
-    // todo: build this functionality into ferinth itself :]
+    // todo: build this functionality into ferinth :]
     pub async fn search(
         query: String,
         loader: Loader,

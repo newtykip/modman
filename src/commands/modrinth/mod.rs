@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use modman::Error;
 
-mod modrinth;
+mod add;
 
 #[derive(Parser)]
 pub struct Command {
@@ -12,14 +12,15 @@ pub struct Command {
 #[derive(Subcommand)]
 pub enum Subcommands {
     /// Add a new mod from modrinth
-    Modrinth(modrinth::Args),
+    Add(add::Args),
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
     let subcommand = command.subcommand;
 
     match subcommand {
-        Subcommands::Modrinth(args) => modrinth::execute(args)?,
+        Subcommands::Add(args) => add::execute(args)?,
+        // todo: export
     }
 
     Ok(())

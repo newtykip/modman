@@ -1,8 +1,7 @@
 use clap::{Parser, Subcommand};
 
-pub mod add;
+pub mod modrinth;
 pub mod profile;
-pub mod sync;
 
 #[derive(Parser)]
 #[clap(version)]
@@ -16,9 +15,6 @@ pub enum Commands {
     /// Manage your profiles
     Profile(profile::Command),
 
-    /// Synchronize your profiles
-    Sync(sync::Command),
-
-    /// Add mods to a profile
-    Add(add::Command),
+    /// Manage modrinth-based mods
+    Modrinth(modrinth::Command),
 }
