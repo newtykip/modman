@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use reqwest::Client;
 
 // todo: allow questions to be answered via arguments
+// todo: add option to have sync set up straight away
 
 #[tokio::main]
 pub async fn execute() -> Result<(), Error> {
@@ -21,13 +22,13 @@ pub async fn execute() -> Result<(), Error> {
         .par_iter()
         .filter(|v| {
             v.major
-                && v.version.split('.').collect::<Vec<&str>>()[1]
+                && v.version.split('.').collect::<Vec<_>>()[1]
                     .parse::<u8>()
                     .unwrap()
                     >= 7
         })
         .map(|v| v.version.clone())
-        .collect::<Vec<String>>();
+        .collect::<Vec<_>>();
 
     game_versions.pop();
 
@@ -89,9 +90,9 @@ pub async fn execute() -> Result<(), Error> {
 
     let loader_version: String = match mod_loader {
         Loader::Forge => loader_versions
-            .map(|v| v.split('-').collect::<Vec<&str>>())
+            .map(|v| v.split('-').collect::<Vec<_>>())
             .filter(|v| v[0] == minecraft_version)
-            .collect::<Vec<Vec<&str>>>()
+            .collect::<Vec<_>>()
             .first()
             .unwrap()
             .join("-"),

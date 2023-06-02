@@ -35,6 +35,10 @@ pub fn error(message: &str) {
     println!("{}", colour::<Red>(message));
 }
 
+pub fn info(message: &str) {
+    println!("{}", message.if_supports_color(Stdout, |text| text.bold()));
+}
+
 pub fn url(url: &str) -> String {
     underline(&colour::<LightBlue>(url))
 }

@@ -1,8 +1,8 @@
 use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{Error, Loader};
+use crate::Error;
 
 pub type GameVersions<'t> = Vec<&'t str>;
 
@@ -43,22 +43,32 @@ impl Serialize for Side {
     }
 }
 
-#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
+impl<'de> Deserialize<'de> for Side {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match String::deserialize(deserializer)?.as_str() {
+            "client" => Ok(Side::Client),
+            "server" => Ok(Side::Server),
+            "both" => Ok(Side::Both),
+            _ => Err(serde::de::Error::custom("invalid side")),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
 pub struct Download {
     pub url: String,
     pub hash_format: String,
     pub hash: String,
 }
 
-#[derive(Debug, Serialize, Eq, Hash, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
 pub struct Mod {
     pub name: String,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub slug: String,
     pub filename: String,
+    pub version: String,
     pub side: Side,
-    #[serde(skip_serializing)]
-    pub loader: Loader,
 
     pub download: Download,
 }

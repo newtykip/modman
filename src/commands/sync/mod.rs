@@ -3,7 +3,7 @@ use modman::{utils::error, Error, Profile};
 
 mod destination;
 mod init;
-
+mod save;
 #[derive(Parser)]
 pub struct Command {
     #[clap(subcommand)]
@@ -18,9 +18,12 @@ pub enum Subcommands {
     /// Set the destination for the sync
     #[clap(alias = "dest")]
     Destination(destination::Args),
+
+    // Save the state of the current profile
+    Save,
 }
 
-fn prelude() -> Result<Option<Profile>, Error> {
+fn provide_profile(function: impl Fn(Profile) -> Result<(), Error>) -> Result<(), Error> {
     let profile = Profile::load_selected()?;
 
     if profile.repo.is_none() {
@@ -28,11 +31,11 @@ fn prelude() -> Result<Option<Profile>, Error> {
             "The profile \"{}\" does not have an initialized repository!",
             profile
         ));
-
-        return Ok(None);
+    } else {
+        function(profile)?;
     }
 
-    Ok(Some(profile))
+    Ok(())
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
@@ -41,12 +44,9 @@ pub fn parse(command: Command) -> Result<(), Error> {
     match subcommand {
         Subcommands::Init => init::execute()?,
         Subcommands::Destination(args) => {
-            let profile = prelude()?;
-
-            if let Some(profile) = profile {
-                destination::execute(profile, args)?;
-            }
+            provide_profile(move |profile| destination::execute(profile, args.to_owned()))?
         }
+        Subcommands::Save => provide_profile(save::execute)?,
     }
 
     Ok(())

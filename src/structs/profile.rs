@@ -1,7 +1,7 @@
 use crate::{utils::modman_dir, ConfigVersions, Error, Loader};
 
 use super::{mcmod::Mod, Config};
-use git2::Repository;
+use git2::{Repository, RepositoryInitOptions};
 use std::{fmt::Display, fs, path::PathBuf};
 
 fn determine_loader(versions: &ConfigVersions) -> Option<Loader> {
@@ -71,10 +71,11 @@ impl Profile {
         let loader = determine_loader(&config.versions).unwrap();
 
         // create a git repository
-        let repo = match Repository::init(&path) {
-            Ok(repo) => Some(repo),
-            Err(_) => None,
-        };
+        let repo =
+            match Repository::init_opts(&path, RepositoryInitOptions::new().initial_head("main")) {
+                Ok(repo) => Some(repo),
+                Err(_) => None,
+            };
 
         Ok(Self {
             config,

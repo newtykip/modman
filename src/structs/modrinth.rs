@@ -12,7 +12,7 @@ const BASE_URL: &str = "https://api.modrinth.com/v2";
 
 fn map_dependency(value: &Value) -> ModrinthDependency {
     ModrinthDependency {
-        version_id: value["version_id"].as_str().unwrap().into(),
+        version_id: value["version_id"].as_str().map(|s| s.to_string()),
         dependency_type: match value["dependency_type"].as_str().unwrap() {
             "required" => DependencyType::Required,
             "optional" => DependencyType::Optional,
@@ -25,7 +25,7 @@ fn map_dependency(value: &Value) -> ModrinthDependency {
 
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct ModrinthDependency {
-    version_id: String,
+    version_id: Option<String>,
     dependency_type: DependencyType,
 }
 
@@ -55,7 +55,7 @@ impl ModrinthMod {
             game_versions
                 .par_iter()
                 .map(|version| format!(r#""versions:{}""#, version))
-                .collect::<Vec<String>>()
+                .collect::<Vec<_>>()
                 .join(",")
         ))
         .await?
@@ -112,7 +112,7 @@ impl ModrinthMod {
                 game_versions
                     .par_iter()
                     .map(|version| format!(r#""{}""#, version))
-                    .collect::<Vec<String>>()
+                    .collect::<Vec<_>>()
                     .join(",")
             ))
             .send()
@@ -145,8 +145,8 @@ impl ModrinthMod {
                 name: project["title"].as_str().unwrap().into(),
                 slug: project["slug"].as_str().unwrap().into(),
                 filename: latest["files"][0]["filename"].as_str().unwrap().into(),
+                version: latest["version_number"].as_str().unwrap().into(),
                 side,
-                loader,
                 download: Download {
                     url: latest["files"][0]["url"].as_str().unwrap().into(),
                     hash_format: "sha1".into(),
@@ -173,17 +173,27 @@ impl ModrinthMod {
         let mut resolved: HashSet<ModrinthMod> = HashSet::new();
 
         // todo: replace fabric api with quilted fabric api when loader is quilt
+        // todo: handle case when dependency.version_id is undefined
         for dependency in &self.dependencies_unresolved {
+            // for now only process the dependency if version_id is defined
+            if dependency.version_id.is_none() {
+                continue;
+            }
+
             match dependency.dependency_type {
                 DependencyType::Optional if !optional => continue,
                 DependencyType::Incompatible => continue,
                 _ => {}
             }
 
-            let version = reqwest::get(format!("{}/version/{}", BASE_URL, dependency.version_id))
-                .await?
-                .json::<Value>()
-                .await?;
+            let version = reqwest::get(format!(
+                "{}/version/{}",
+                BASE_URL,
+                dependency.version_id.as_ref().unwrap()
+            ))
+            .await?
+            .json::<Value>()
+            .await?;
 
             let project = reqwest::get(format!(
                 "{}/project/{}",
@@ -204,20 +214,13 @@ impl ModrinthMod {
                 _ => Side::Client,
             };
 
-            let loader = match version["loaders"][0].as_str().unwrap() {
-                "forge" => Loader::Forge,
-                "fabric" => Loader::Fabric,
-                "quilt" => Loader::Quilt,
-                _ => unreachable!(),
-            };
-
             resolved.insert(ModrinthMod {
                 data: Mod {
                     name: project["title"].as_str().unwrap().into(),
                     slug: project["slug"].as_str().unwrap().into(),
                     filename: version["files"][0]["filename"].as_str().unwrap().into(),
+                    version: version["version_number"].as_str().unwrap().into(),
                     side,
-                    loader,
                     download: Download {
                         url: version["files"][0]["url"].as_str().unwrap().into(),
                         hash_format: "sha1".into(),

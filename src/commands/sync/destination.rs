@@ -7,7 +7,7 @@ use modman::{
 };
 use url::Url;
 
-#[derive(ClapArgs)]
+#[derive(ClapArgs, Clone)]
 pub struct Args {
     url: Option<String>,
 }
@@ -16,11 +16,7 @@ fn is_valid_remote(repo: Repository, url: &str) -> Result<bool, Error> {
     let mut remote = repo.remote_anonymous(url)?;
     let connection = remote.connect_auth(Direction::Fetch, None, None);
 
-    if connection.is_err() {
-        Ok(false)
-    } else {
-        Ok(!connection?.list()?.is_empty())
-    }
+    Ok(connection.is_ok())
 }
 
 fn validate_url(url: &str) -> bool {
@@ -29,7 +25,7 @@ fn validate_url(url: &str) -> bool {
 
 #[tokio::main]
 pub async fn execute(profile: Profile, args: Args) -> Result<(), Error> {
-    // we know that the profile has a repo because we checked in the prelude
+    // we know that the profile has a repo because we checked in the parent function
     let repo = profile.repo.unwrap();
     let profile_path = profile.path.clone();
 
