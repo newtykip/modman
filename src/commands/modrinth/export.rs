@@ -1,4 +1,4 @@
-use modman::{Error, ModSide, Profile};
+use modman::{utils::success, Error, ModSide, Profile};
 use serde::Serialize;
 use std::{fs::File, io::Write};
 use zip::{write::FileOptions, ZipWriter};
@@ -111,6 +111,11 @@ pub async fn execute() -> Result<(), Error> {
     zip.add_directory("client-overrides", options)?;
 
     zip.finish()?;
+
+    success(&format!(
+        "Successfully exported {} {}!",
+        profile.config.name, profile.config.version
+    ));
 
     Ok(())
 }

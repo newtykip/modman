@@ -1,7 +1,6 @@
-use crate::Error;
 use clap::Args as ClapArgs;
 use inquire::{Confirm, Select};
-use modman::{ModrinthMod, Profile};
+use modman::{utils::success, Error, ModrinthMod, Profile};
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -44,12 +43,17 @@ pub async fn execute(args: Args) -> Result<(), Error> {
 
         if Confirm::new("Would you like to add them?").prompt()? {
             for dependency in dependencies {
-                selected_profile.add_mod(dependency.data)?;
+                selected_profile.add_mod(&dependency.data)?;
             }
         }
     }
 
-    selected_profile.add_mod(mcmod.data)?;
+    selected_profile.add_mod(&mcmod.data)?;
+
+    success(&format!(
+        "Successfully added {}! ({})",
+        mcmod.data.name, mcmod.data.filename
+    ));
 
     Ok(())
 }

@@ -16,7 +16,7 @@ pub async fn execute(profile: Profile) -> Result<(), Error> {
     let repo = profile.repo.unwrap();
     let repo_path = repo.path().parent().unwrap();
     let recent_commit = repo.head()?.peel_to_commit()?;
-    let tree = recent_commit.tree()?;
+    let recent_tree = recent_commit.tree()?;
 
     // find all of the changed files
     let statuses = repo.statuses(None)?;
@@ -65,7 +65,8 @@ pub async fn execute(profile: Profile) -> Result<(), Error> {
             let contents: Mod = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
             let previous_contents: Mod = toml::from_str(
                 &String::from_utf8(
-                    tree.get_path(&PathBuf::new().join("mods").join(path.file_name().unwrap()))
+                    recent_tree
+                        .get_path(&PathBuf::new().join("mods").join(path.file_name().unwrap()))
                         .unwrap()
                         .to_object(&repo)
                         .unwrap()
@@ -101,7 +102,8 @@ pub async fn execute(profile: Profile) -> Result<(), Error> {
         .map(|path| {
             let contents: Mod = toml::from_str(
                 &String::from_utf8(
-                    tree.get_path(&PathBuf::new().join("mods").join(path.file_name().unwrap()))
+                    recent_tree
+                        .get_path(&PathBuf::new().join("mods").join(path.file_name().unwrap()))
                         .unwrap()
                         .to_object(&repo)
                         .unwrap()

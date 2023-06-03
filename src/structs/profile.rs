@@ -1,11 +1,14 @@
+use super::{mcmod::Mod, Config};
 use crate::{
     utils::{create_slug, modman_dir},
     ConfigVersions, Error, Loader,
 };
-
-use super::{mcmod::Mod, Config};
 use git2::{Repository, RepositoryInitOptions};
-use std::{fmt::Display, fs, path::PathBuf};
+use std::{
+    fmt::Display,
+    fs::{self},
+    path::PathBuf,
+};
 
 fn determine_loader(versions: &ConfigVersions) -> Option<Loader> {
     if versions.fabric.is_some() {
@@ -24,6 +27,12 @@ pub struct Profile {
     pub path: PathBuf,
     pub repo: Option<Repository>,
     pub loader: Loader,
+}
+
+impl PartialEq for Profile {
+    fn eq(&self, other: &Self) -> bool {
+        self.config.name == other.config.name
+    }
 }
 
 impl Profile {
@@ -142,7 +151,7 @@ impl Profile {
         Ok(())
     }
 
-    pub fn add_mod(&self, mcmod: Mod) -> Result<(), Error> {
+    pub fn add_mod(&self, mcmod: &Mod) -> Result<(), Error> {
         mcmod.write(
             self.path
                 .join("mods")
@@ -162,6 +171,16 @@ impl Profile {
                 mcmod
             })
             .collect())
+    }
+
+    pub fn is_selected(&self) -> Result<bool, Error> {
+        let contents = fs::read_to_string(modman_dir().join(".selected"))?;
+        Ok(contents == create_slug(&self.config.name))
+    }
+
+    pub fn delete(&self) -> Result<(), Error> {
+        fs::remove_dir_all(&self.path)?;
+        Ok(())
     }
 }
 

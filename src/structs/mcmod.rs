@@ -1,8 +1,6 @@
-use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
-
-use serde::{Deserialize, Serialize};
-
 use crate::Error;
+use serde::{Deserialize, Serialize};
+use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
 
 pub type GameVersions<'t> = Vec<&'t str>;
 

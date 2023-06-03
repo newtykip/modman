@@ -5,6 +5,7 @@ mod backup;
 mod create;
 mod select;
 mod view;
+mod delete;
 
 #[derive(Parser)]
 pub struct Command {
@@ -20,7 +21,7 @@ pub enum Subcommands {
 
     /// Select a profile
     #[clap(aliases = &["s", "choose"])]
-    Select,
+    Select(select::Args),
 
     /// Backup your profiles using git
     #[clap(aliases = &["b", "sync"])]
@@ -29,9 +30,10 @@ pub enum Subcommands {
     /// View a profile
     #[clap(aliases = &["v", "current"])]
     View(view::Args),
-    // todo: Modify
 
-    // todo: Delete
+    /// Delete a profilr
+    #[clap(aliases = &["d", "remove"])]
+    Delete(delete::Args), // todo: Modify
 }
 
 pub fn parse(command: Command) -> Result<(), Error> {
@@ -39,9 +41,10 @@ pub fn parse(command: Command) -> Result<(), Error> {
 
     match subcommand {
         Subcommands::Create => create::execute()?,
-        Subcommands::Select => select::execute()?,
+        Subcommands::Select(args) => select::execute(args)?,
         Subcommands::View(args) => view::execute(args)?,
         Subcommands::Backup(subcommand) => backup::parse(subcommand)?,
+        Subcommands::Delete(args) => delete::execute(args)?,
     }
 
     Ok(())

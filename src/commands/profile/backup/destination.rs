@@ -64,7 +64,7 @@ pub async fn execute(profile: Profile, args: Args) -> Result<(), Error> {
     }
 
     success(&format!(
-        "Successfully set sync destination for profile {}!",
+        "Successfully set backup destination for profile {}!",
         profile.config.name
     ));
 
