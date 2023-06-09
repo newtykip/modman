@@ -1,38 +1,47 @@
-use crate::Error;
+use crate::{utils::MODMAN_DIR, Error};
+use once_cell::sync::Lazy;
+use phf::{phf_map, Map};
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{collections::HashMap, fs::File, io::Write, path::PathBuf};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ConfigVersions {
-    pub minecraft: String,
-    pub forge: Option<String>,
-    pub fabric: Option<String>,
-    pub quilt: Option<String>,
+pub enum ValueType {
+    String,
 }
 
-/// profile.toml
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Config {
-    pub name: String,
-    pub author: String,
-    pub version: String,
-    pub summary: Option<String>,
+pub static CONFIG_PATH: Lazy<PathBuf> = Lazy::new(|| MODMAN_DIR.join("config.toml"));
+pub static CONFIG_TYPES: Map<&'static str, ValueType> = phf_map! {
+    "modrinth_token" => ValueType::String,
+    "curseforge_token" => ValueType::String,
+};
+pub static CONFIG_CENSOR: Map<&'static str, bool> = phf_map! {
+    "modrinth_token" => true,
+    "curseforge_token" => true,
+};
 
-    pub versions: ConfigVersions,
-}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Config(pub HashMap<String, Option<String>>);
 
 impl Config {
-    pub fn load(path: PathBuf) -> Result<Self, Error> {
-        let content = std::fs::read_to_string(path)?;
-
+    pub fn load() -> Result<Self, Error> {
+        let content = std::fs::read_to_string(CONFIG_PATH.clone())?;
         Ok(toml::from_str(&content)?)
     }
 
-    pub fn write(&self, path: PathBuf) -> Result<(), Error> {
+    pub fn save(&self) -> Result<(), Error> {
         let content = toml::to_string(&self)?;
-
-        File::create(path)?.write_all(content.as_bytes())?;
-
+        File::create(CONFIG_PATH.clone())?.write_all(content.as_bytes())?;
         Ok(())
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let mut values = HashMap::new();
+
+        for key in CONFIG_TYPES.keys() {
+            values.insert(key.to_string(), None);
+        }
+
+        Self(values)
     }
 }

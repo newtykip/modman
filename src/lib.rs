@@ -3,7 +3,10 @@ mod structs;
 pub mod utils;
 
 use serde::Deserialize;
-pub use structs::{Config, ConfigVersions, Mod, ModSide, ModrinthMod, Profile};
+pub use structs::{
+    Config, ConfigVersions, Mod, ModrinthMod, Profile, ProfileConfig, ValueType, CONFIG_CENSOR,
+    CONFIG_PATH, CONFIG_TYPES,
+};
 
 /// Generic error type
 pub type Error = Box<dyn std::error::Error>;

@@ -1,8 +1,26 @@
 use crate::Error;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, fs::File, io::Write, path::PathBuf};
+use std::{fmt::Display, fs::File, hash::Hash, io::Write, path::PathBuf};
 
 pub type GameVersions<'t> = Vec<&'t str>;
+
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum SupportState {
+    Required,
+    Optional,
+    Unsupported,
+}
+
+impl ToString for SupportState {
+    fn to_string(&self) -> String {
+        match self {
+            SupportState::Required => "required",
+            SupportState::Optional => "optional",
+            SupportState::Unsupported => "unsupported",
+        }
+        .to_string()
+    }
+}
 
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub enum DependencyType {
@@ -24,51 +42,23 @@ impl Display for SearchResult {
     }
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub enum ModSide {
-    Client,
-    Server,
-    Both,
-}
-
-impl Serialize for ModSide {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            ModSide::Client => serializer.serialize_str("client"),
-            ModSide::Server => serializer.serialize_str("server"),
-            ModSide::Both => serializer.serialize_str("both"),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for ModSide {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        match String::deserialize(deserializer)?.as_str() {
-            "client" => Ok(ModSide::Client),
-            "server" => Ok(ModSide::Server),
-            "both" => Ok(ModSide::Both),
-            _ => Err(serde::de::Error::custom("invalid side")),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
 pub struct Download {
     pub url: String,
-    pub hash_format: String,
     pub sha1: String,
     pub sha512: String,
-    pub file_size: u64,
+    pub file_size: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize, Eq, Hash, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct Mod {
     pub name: String,
     #[serde(skip_serializing, skip_deserializing)]
     pub slug: String,
     pub filename: String,
     pub version: String,
-    pub side: ModSide,
+    pub client_side: SupportState,
+    pub server_side: SupportState,
 
     pub download: Download,
 }

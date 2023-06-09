@@ -3,7 +3,7 @@ mod mcmod;
 mod modrinth;
 mod profile;
 
-pub use config::{Config, ConfigVersions};
-pub use mcmod::{Mod, ModSide};
+pub use config::{Config, ValueType, CONFIG_CENSOR, CONFIG_PATH, CONFIG_TYPES};
+pub use mcmod::Mod;
 pub use modrinth::ModrinthMod;
-pub use profile::Profile;
+pub use profile::{ConfigVersions, Profile, ProfileConfig};

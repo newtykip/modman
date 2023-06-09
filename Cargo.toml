@@ -7,14 +7,17 @@ edition = "2021"
 async-recursion = "1.0.4"
 chrono = "0.4.26"
 clap = { version = "4.2.1", features = ["derive"] }
-ferinth = "2.8.0"
+ferinth = { git = "https://github.com/newtykins/ferinth", version = "2.8.0" }
 fuzzy-matcher = "0.3.7"
 git2 = "0.16.1"
 git2_credentials = "0.11.0"
 home = "0.5.4"
 human-panic = "1.1.4"
 inquire = "0.6.1"
+once_cell = "1.18.0"
 owo-colors = { version = "3.5.0", features = ["supports-colors"] }
+phf = { version = "0.11.1", features = ["macros"] }
+prettytable-rs = "0.10.0"
 quickxml_to_serde = "0.5.0"
 rayon = "1.7.0"
 reqwest = { version = "0.11.16", features = ["stream", "json"] }

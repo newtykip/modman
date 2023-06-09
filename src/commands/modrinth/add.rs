@@ -9,7 +9,7 @@ pub struct Args {
 
 #[tokio::main]
 pub async fn execute(args: Args) -> Result<(), Error> {
-    let selected_profile = Profile::load_selected()?;
+    let selected_profile = Profile::get_selected()?;
 
     let results = ModrinthMod::search(
         args.query,

@@ -23,7 +23,7 @@ pub enum Subcommands {
 }
 
 fn provide_profile() -> Result<Option<Profile>, Error> {
-    let profile = Profile::load_selected()?;
+    let profile = Profile::get_selected()?;
 
     // if the profile doesn't have a repo, initialize one
     if profile.repo.is_none() {

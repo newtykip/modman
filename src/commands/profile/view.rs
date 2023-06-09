@@ -15,7 +15,7 @@ pub struct Args {
 pub async fn execute(args: Args) -> Result<(), Error> {
     let Profile { config, repo, .. } = match args.name {
         Some(name) => Profile::load(&create_slug(&name)),
-        None => Profile::load_selected(),
+        None => Profile::get_selected(),
     }?;
 
     println!(

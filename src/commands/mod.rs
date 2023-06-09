@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+pub mod config;
 pub mod modrinth;
 pub mod profile;
 
@@ -19,4 +20,8 @@ pub enum Commands {
     /// Manage modrinth-based mods
     #[clap(alias = "mr")]
     Modrinth(modrinth::Command),
+
+    /// Manage your global configuration
+    #[clap(aliases = &["c", "cfg"])]
+    Config(config::Command),
 }

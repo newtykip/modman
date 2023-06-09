@@ -3,9 +3,9 @@ use modman::Error;
 
 mod backup;
 mod create;
+mod delete;
 mod select;
 mod view;
-mod delete;
 
 #[derive(Parser)]
 pub struct Command {

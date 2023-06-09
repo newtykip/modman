@@ -2,7 +2,7 @@ use ferinth::Ferinth;
 use inquire::{validator::Validation, Select, Text};
 use modman::{
     utils::{create_slug, success},
-    Config, ConfigVersions, Error, Loader, Profile,
+    ConfigVersions, Error, Loader, Profile, ProfileConfig,
 };
 use quickxml_to_serde::xml_str_to_json;
 use rayon::prelude::*;
@@ -115,7 +115,7 @@ pub async fn execute() -> Result<(), Error> {
     let description = Text::new("Give a brief description of your modpack").prompt()?;
 
     // write all of this data into the schema
-    let config = Config {
+    let config = ProfileConfig {
         name: name.clone(),
         author,
         version,

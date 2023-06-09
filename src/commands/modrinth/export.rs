@@ -1,11 +1,12 @@
-use modman::{utils::success, Error, ModSide, Profile};
+use modman::{utils::success, Error, Profile};
+use rayon::prelude::*;
 use serde::Serialize;
 use std::{fs::File, io::Write};
 use zip::{write::FileOptions, ZipWriter};
 
 #[derive(Serialize)]
 struct ModEnvironment {
-    client: String, // required, optional, unsupported
+    client: String,
     server: String,
 }
 
@@ -23,7 +24,7 @@ struct ModFile {
     env: Option<ModEnvironment>,
     downloads: Vec<String>,
     #[serde(rename = "fileSize")]
-    file_size: u64,
+    file_size: usize,
 }
 
 #[derive(Serialize)]
@@ -53,7 +54,7 @@ struct Index {
 
 #[tokio::main]
 pub async fn execute() -> Result<(), Error> {
-    let profile = Profile::load_selected()?;
+    let profile = Profile::get_selected()?;
     let file = File::create(format!(
         "{} v{}.mrpack",
         profile.config.name, profile.config.version
@@ -70,7 +71,7 @@ pub async fn execute() -> Result<(), Error> {
         summary: None,
         files: profile
             .get_mods()?
-            .iter()
+            .par_iter()
             .map(|mcmod| ModFile {
                 path: format!("mods/{}", mcmod.filename),
                 hashes: FileHashes {
@@ -79,18 +80,9 @@ pub async fn execute() -> Result<(), Error> {
                 },
                 downloads: vec![mcmod.download.url.clone()],
                 file_size: mcmod.download.file_size,
-                // todo: can i handle when it is optional?
                 env: Some(ModEnvironment {
-                    client: match mcmod.side {
-                        ModSide::Client => "required",
-                        _ => "unsupported",
-                    }
-                    .into(),
-                    server: match mcmod.side {
-                        ModSide::Server => "required",
-                        _ => "unsupported",
-                    }
-                    .into(),
+                    client: mcmod.client_side.to_string(),
+                    server: mcmod.server_side.to_string(),
                 }),
             })
             .collect(),

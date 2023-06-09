@@ -23,7 +23,7 @@ pub async fn execute(args: Args) -> Result<(), Error> {
 
             profile?
         }
-        None => Profile::load_selected()?,
+        None => Profile::get_selected()?,
     };
 
     // ask for confirmation
@@ -35,7 +35,7 @@ pub async fn execute(args: Args) -> Result<(), Error> {
     .prompt()?;
 
     if !approved {
-        return Ok(());
+        Ok(())
     } else {
         // if the profile was selected ask for a new profile to select
         if profile.is_selected()? {

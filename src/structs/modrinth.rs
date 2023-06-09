@@ -1,38 +1,51 @@
 use std::collections::HashSet;
 
-use super::mcmod::{DependencyType, Download, GameVersions, Mod, ModSide, SearchResult};
+use super::mcmod::{DependencyType, Download, GameVersions, Mod, SearchResult, SupportState};
 use crate::{Error, Loader};
 use async_recursion::async_recursion;
+use ferinth::{
+    structures::version::{
+        Dependency as FerinthDependency, DependencyType as FerinthDependencyType,
+        SupportState as FerinthSupportState,
+    },
+    Ferinth,
+};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use rayon::prelude::*;
-use reqwest::Client;
 use serde_json::Value;
 
 const BASE_URL: &str = "https://api.modrinth.com/v2";
 
-fn map_dependency(value: &Value) -> ModrinthDependency {
-    ModrinthDependency {
-        version_id: value["version_id"].as_str().map(|s| s.to_string()),
-        dependency_type: match value["dependency_type"].as_str().unwrap() {
-            "required" => DependencyType::Required,
-            "optional" => DependencyType::Optional,
-            "incompatible" => DependencyType::Incompatible,
-            "embedded" => DependencyType::Embedded,
-            _ => unreachable!(),
+fn map_dependency(value: &FerinthDependency) -> Dependency {
+    Dependency {
+        version_id: value.version_id.clone(),
+        dependency_type: match value.dependency_type {
+            FerinthDependencyType::Required => DependencyType::Required,
+            FerinthDependencyType::Optional => DependencyType::Optional,
+            FerinthDependencyType::Incompatible => DependencyType::Incompatible,
+            FerinthDependencyType::Embedded => DependencyType::Embedded,
         },
     }
 }
 
+fn map_support_state(value: &FerinthSupportState) -> SupportState {
+    match value {
+        FerinthSupportState::Required => SupportState::Required,
+        FerinthSupportState::Optional => SupportState::Optional,
+        FerinthSupportState::Unsupported => SupportState::Unsupported,
+    }
+}
+
 #[derive(Debug, Eq, Hash, PartialEq)]
-pub struct ModrinthDependency {
+pub struct Dependency {
     version_id: Option<String>,
     dependency_type: DependencyType,
 }
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Hash)]
 pub struct ModrinthMod {
     pub data: Mod,
-    dependencies_unresolved: Vec<ModrinthDependency>,
+    dependencies_unresolved: Vec<Dependency>,
 }
 
 impl ModrinthMod {
@@ -96,74 +109,35 @@ impl ModrinthMod {
         loader: Loader,
         game_versions: GameVersions<'_>,
     ) -> Result<ModrinthMod, Error> {
-        let client = Client::new();
-
-        // get the latest version
-        let versions = client
-            .get(format!(
-                "{}/project/{}/version?loaders=[{}{}]&game_versions=[{}]",
-                BASE_URL,
-                project_id,
-                loader.to_string(),
-                match loader {
-                    Loader::Quilt => r#","fabric""#,
-                    _ => "",
-                },
-                game_versions
-                    .par_iter()
-                    .map(|version| format!(r#""{}""#, version))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            ))
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-
-        let latest = &versions.as_array().unwrap()[0];
-
-        // lookup project data
-        let project = client
-            .get(format!("{}/project/{}", BASE_URL, project_id))
-            .send()
-            .await?
-            .json::<Value>()
-            .await?;
-
-        let side = match (
-            project["client_side"].as_str().unwrap(),
-            project["server_side"].as_str().unwrap(),
-        ) {
-            ("required", "required") => ModSide::Both,
-            (_, "required") => ModSide::Server,
-            ("required", _) => ModSide::Client,
-            _ => ModSide::Client,
-        };
+        let client = Ferinth::default();
+        let project = client.get_project(&project_id).await?;
+        let latest_version = &client
+            .list_versions_filtered(
+                &project_id,
+                Some(&[&loader.to_string()]),
+                Some(&game_versions),
+                None,
+            )
+            .await?[0];
+        let download = &latest_version.files[0];
 
         Ok(ModrinthMod {
             data: Mod {
-                name: project["title"].as_str().unwrap().into(),
-                slug: project["slug"].as_str().unwrap().into(),
-                filename: latest["files"][0]["filename"].as_str().unwrap().into(),
-                version: latest["version_number"].as_str().unwrap().into(),
-                side,
+                name: project.title,
+                slug: project.slug,
+                filename: download.filename.clone(),
+                version: latest_version.version_number.clone(),
+                client_side: map_support_state(&latest_version.client_side),
+                server_side: map_support_state(&latest_version.server_side),
                 download: Download {
-                    url: latest["files"][0]["url"].as_str().unwrap().into(),
-                    hash_format: "sha1".into(),
-                    sha1: latest["files"][0]["hashes"]["sha1"]
-                        .as_str()
-                        .unwrap()
-                        .into(),
-                    sha512: latest["files"][0]["hashes"]["sha512"]
-                        .as_str()
-                        .unwrap()
-                        .into(),
-                    file_size: latest["files"][0]["size"].as_u64().unwrap(),
+                    url: download.url.to_string(),
+                    sha1: download.hashes.sha1.clone(),
+                    sha512: download.hashes.sha512.clone(),
+                    file_size: download.size,
                 },
             },
-            dependencies_unresolved: latest["dependencies"]
-                .as_array()
-                .unwrap()
+            dependencies_unresolved: latest_version
+                .dependencies
                 .iter()
                 .map(map_dependency)
                 .collect(),
@@ -176,6 +150,7 @@ impl ModrinthMod {
         optional: bool,
     ) -> Result<HashSet<ModrinthMod>, Error> {
         let mut resolved: HashSet<ModrinthMod> = HashSet::new();
+        let client = Ferinth::default();
 
         // todo: replace fabric api with quilted fabric api when loader is quilt
         // todo: handle case when dependency.version_id is undefined
@@ -192,61 +167,28 @@ impl ModrinthMod {
                 _ => {}
             }
 
-            let version = reqwest::get(format!(
-                "{}/version/{}",
-                BASE_URL,
-                dependency.version_id.as_ref().unwrap()
-            ))
-            .await?
-            .json::<Value>()
-            .await?;
-
-            let project = reqwest::get(format!(
-                "{}/project/{}",
-                BASE_URL,
-                version["project_id"].as_str().unwrap()
-            ))
-            .await?
-            .json::<Value>()
-            .await?;
-
-            let side = match (
-                project["client_side"].as_str().unwrap(),
-                project["server_side"].as_str().unwrap(),
-            ) {
-                ("required", "required") => ModSide::Both,
-                (_, "required") => ModSide::Server,
-                ("required", _) => ModSide::Client,
-                _ => ModSide::Client,
-            };
+            let version = client
+                .get_version(dependency.version_id.as_ref().unwrap())
+                .await?;
+            let project = client.get_project(&version.project_id).await?;
+            let download = &version.files[0];
 
             resolved.insert(ModrinthMod {
                 data: Mod {
-                    name: project["title"].as_str().unwrap().into(),
-                    slug: project["slug"].as_str().unwrap().into(),
-                    filename: version["files"][0]["filename"].as_str().unwrap().into(),
-                    version: version["version_number"].as_str().unwrap().into(),
-                    side,
+                    name: project.title,
+                    slug: project.slug,
+                    filename: download.filename.clone(),
+                    version: version.version_number.clone(),
+                    client_side: map_support_state(&version.client_side),
+                    server_side: map_support_state(&version.server_side),
                     download: Download {
-                        url: version["files"][0]["url"].as_str().unwrap().into(),
-                        hash_format: "sha1".into(),
-                        sha1: version["files"][0]["hashes"]["sha1"]
-                            .as_str()
-                            .unwrap()
-                            .into(),
-                        sha512: version["files"][0]["hashes"]["sha512"]
-                            .as_str()
-                            .unwrap()
-                            .into(),
-                        file_size: version["files"][0]["size"].as_u64().unwrap(),
+                        url: download.url.to_string(),
+                        sha1: download.hashes.sha1.clone(),
+                        sha512: download.hashes.sha512.clone(),
+                        file_size: download.size,
                     },
                 },
-                dependencies_unresolved: version["dependencies"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(map_dependency)
-                    .collect(),
+                dependencies_unresolved: version.dependencies.iter().map(map_dependency).collect(),
             });
         }
 
