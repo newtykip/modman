@@ -1,21 +1,57 @@
-use super::mcmod::Mod;
-use crate::{
-    utils::{create_slug, MODMAN_DIR},
-    Error, Loader,
-};
-use git2::{Repository, RepositoryInitOptions};
-use once_cell::sync::Lazy;
+use super::Loader;
+use crate::{create_slug, MODMAN_DIR};
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt::Display,
-    fs::{self, File},
-    io::Write,
+    fs,
+    io::{self, Write},
     path::PathBuf,
 };
 
-static SELECTED_PATH: Lazy<PathBuf> = Lazy::new(|| MODMAN_DIR.join(".selected"));
+#[derive(Clone)]
+pub struct Profile {
+    config: ProfileConfig,
+    pub loader: Option<Loader>,
+}
 
-fn determine_loader(versions: &ConfigVersions) -> Option<Loader> {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProfileConfig {
+    /// the name of the profile
+    name: String,
+
+    /// the author associated with the modpack
+    author: String,
+
+    /// the current version of the modpack
+    version: String,
+
+    /// a short summary of the modpack
+    summary: Option<String>,
+
+    /// versions associated with the profile
+    versions: ProfileVersions,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ProfileVersions {
+    pub minecraft: String,
+    pub forge: Option<String>,
+    pub fabric: Option<String>,
+    pub quilt: Option<String>,
+}
+
+/// find the path to the profile directory
+fn profile_directory(slug: Option<&str>) -> PathBuf {
+    let mut path = MODMAN_DIR.join("profiles");
+
+    if let Some(slug) = slug {
+        path = path.join(slug);
+    }
+
+    path
+}
+
+/// figure out which loader is used by the profile's versions
+fn resolve_loader(versions: &ProfileVersions) -> Option<Loader> {
     if versions.fabric.is_some() {
         Some(Loader::Fabric)
     } else if versions.forge.is_some() {
@@ -27,202 +63,49 @@ fn determine_loader(versions: &ConfigVersions) -> Option<Loader> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ConfigVersions {
-    pub minecraft: String,
-    pub forge: Option<String>,
-    pub fabric: Option<String>,
-    pub quilt: Option<String>,
-}
-
-/// profile.toml
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ProfileConfig {
-    pub name: String,
-    pub author: String,
-    pub version: String,
-    pub summary: Option<String>,
-
-    pub versions: ConfigVersions,
-}
-
-impl ProfileConfig {
-    pub fn write(&self, path: PathBuf) -> Result<(), Error> {
-        let content = toml::to_string(&self)?;
-
-        File::create(path)?.write_all(content.as_bytes())?;
-
-        Ok(())
-    }
-
-    pub fn load(path: PathBuf) -> Result<Self, Error> {
-        let content = std::fs::read_to_string(path)?;
-
-        Ok(toml::from_str(&content)?)
-    }
-}
-
-pub struct Profile {
-    pub config: ProfileConfig,
-    pub path: PathBuf,
-    pub repo: Option<Repository>,
-    pub loader: Loader,
-}
-
-impl PartialEq for Profile {
-    fn eq(&self, other: &Self) -> bool {
-        self.config.name == other.config.name
-    }
-}
-
 impl Profile {
-    // * create
+    /// create a new profile
+    pub fn create(config: ProfileConfig) -> io::Result<Self> {
+        // ensure that the profile has a directory
+        let path = profile_directory(Some(&create_slug(&config.name)));
 
-    /// Create a new profile
-    pub fn new(config: ProfileConfig) -> Result<Self, Error> {
-        let path = Profile::directory(Some(&create_slug(&config.name)));
-
-        // ensure that the profile's mods directory exists
         if !path.exists() {
-            std::fs::create_dir_all(path.join("mods"))?;
+            fs::create_dir_all(path.join("mods"))?;
         }
 
         // create the profile.toml file
-        config.write(path.join("profile.toml"))?;
+        let toml_content = toml::to_string(&config).expect("failed to serialize profile config");
+
+        fs::File::create(path)?.write_all(toml_content.as_bytes())?;
 
         // resolve the loader
-        let loader = determine_loader(&config.versions).unwrap();
+        let loader = resolve_loader(&config.versions);
 
-        // create a git repository
-        let repo =
-            match Repository::init_opts(&path, RepositoryInitOptions::new().initial_head("main")) {
-                Ok(repo) => Some(repo),
-                Err(_) => None,
-            };
+        // todo: create git repository
 
-        Ok(Self {
-            config,
-            path,
-            repo,
-            loader,
-        })
+        Ok(Self { config, loader })
     }
 
-    // * load
+    /// load a profile from a directory
+    pub fn load(path: PathBuf) -> io::Result<Self> {
+        // parse config
+        let config =
+            toml::from_str::<ProfileConfig>(&fs::read_to_string(path.join("profile.toml"))?)
+                .expect("failed to parse profile.toml");
 
-    /// Load a profile
-    pub fn load(id: &str) -> Result<Self, Error> {
-        let path = Profile::directory(Some(id));
-        let repo = match Repository::open(&path) {
-            Ok(repo) => Some(repo),
-            Err(_) => None,
-        };
+        // resolve loader
+        let loader = resolve_loader(&config.versions);
 
-        let config = ProfileConfig::load(path.join("profile.toml"))?;
-        let loader = determine_loader(&config.versions).unwrap();
-
-        Ok(Self {
-            config,
-            path,
-            repo,
-            loader,
-        })
+        Ok(Self { config, loader })
     }
 
-    /// Load all profiles
-    pub fn load_all() -> Result<Vec<Self>, Error> {
-        Ok(Profile::used_ids()?
-            .iter()
-            .map(|id| Profile::load(id).unwrap())
-            .collect::<Vec<_>>())
+    /// get the name of the profile
+    pub fn name(&self) -> String {
+        self.config.name.clone()
     }
 
-    /// Load the selected profile
-    pub fn get_selected() -> Result<Self, Error> {
-        let selected = fs::read_to_string(SELECTED_PATH.clone())?;
-
-        Self::load(&selected)
-    }
-
-    // * actions
-
-    /// Mark the profile as selected
-    pub fn select(&self) -> Result<(), Error> {
-        fs::write(MODMAN_DIR.join(".selected"), create_slug(&self.config.name))?;
-
-        Ok(())
-    }
-
-    /// Add a mod to the profile
-    pub fn add_mod(&self, mcmod: &Mod) -> Result<(), Error> {
-        mcmod.write(
-            self.path
-                .join("mods")
-                .join(format!("{}.mm.toml", mcmod.slug)),
-        )?;
-
-        Ok(())
-    }
-
-    /// Get all of the mods associated witgh the profile
-    pub fn get_mods(&self) -> Result<Vec<Mod>, Error> {
-        Ok(fs::read_dir(self.path.join("mods"))?
-            .map(|entry| {
-                let path = entry.unwrap().path();
-                let contents = fs::read_to_string(path).unwrap();
-
-                toml::from_str(&contents).unwrap()
-            })
-            .collect())
-    }
-
-    /// Delete the profile
-    pub fn delete(&self) -> Result<(), Error> {
-        fs::remove_dir_all(&self.path)?;
-        Ok(())
-    }
-
-    // pub async fn create_modrinth(&self) -> Result<(), Error> {
-    //     Ok(())
-    // }
-
-    // * utilities
-
-    /// Is the profile selected?
-    pub fn is_selected(&self) -> Result<bool, Error> {
-        let contents = fs::read_to_string(SELECTED_PATH.clone())?;
-        Ok(contents == create_slug(&self.config.name))
-    }
-
-    /// Get the directory of the profiles
-    fn directory(id: Option<&str>) -> PathBuf {
-        let profiles = SELECTED_PATH.join("profiles");
-
-        if let Some(id) = id {
-            profiles.join(id)
-        } else {
-            profiles
-        }
-    }
-
-    /// List all of the used profile ids
-    pub fn used_ids() -> Result<Vec<String>, Error> {
-        let profiles = Profile::directory(None);
-
-        Ok(if !profiles.exists() {
-            vec![]
-        } else {
-            fs::read_dir(profiles)?
-                .map(|p| p.unwrap().path()) // get all of the paths in the profiles directory
-                .filter(|p| p.is_dir()) // filter out all of the files
-                .map(|f| f.file_name().unwrap().to_str().unwrap().into()) // get the name of the directory
-                .collect()
-        })
-    }
-}
-
-impl Display for Profile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.config.name)
+    /// get the author of the profile
+    pub fn author(&self) -> String {
+        self.config.author.clone()
     }
 }

@@ -1,31 +1,40 @@
-mod structs;
+pub mod structs;
 
-pub mod utils;
+use home::home_dir;
+use once_cell::sync::Lazy;
+use std::{io, path::PathBuf};
+use structs::Profile;
 
-use serde::Deserialize;
-pub use structs::{
-    Config, ConfigVersions, Mod, ModrinthMod, Profile, ProfileConfig, ValueType, CONFIG_CENSOR,
-    CONFIG_PATH, CONFIG_TYPES,
-};
+/// modman home directory
+pub const MODMAN_DIR: Lazy<PathBuf> = Lazy::new(|| {
+    home_dir()
+        .expect("home directory should exist")
+        .join(".modman")
+});
 
-/// Generic error type
-pub type Error = Box<dyn std::error::Error>;
-
-/// Supported mod loaders
-#[derive(Debug, Deserialize, PartialEq, Clone, Copy, Eq, Hash)]
-pub enum Loader {
-    Forge,
-    Fabric,
-    Quilt,
+/// generate slug from string
+pub fn create_slug(data: &str) -> String {
+    data.to_lowercase().replace(' ', "-")
 }
 
-impl ToString for Loader {
-    fn to_string(&self) -> String {
-        match self {
-            Loader::Forge => "forge",
-            Loader::Fabric => "fabric",
-            Loader::Quilt => "quilt",
+/// load all profiles in the home directory
+pub fn load_profiles() -> io::Result<Vec<Profile>> {
+    let mut profiles = vec![];
+
+    for entry in MODMAN_DIR
+        .join("profiles")
+        .read_dir()
+        .expect("failed to read modman directory")
+    {
+        let entry = entry.expect("failed to read entry");
+        let path = entry.path();
+
+        if path.is_dir() {
+            let profile = Profile::load(path)?;
+
+            profiles.push(profile);
         }
-        .to_string()
     }
+
+    Ok(profiles)
 }
