@@ -7,36 +7,44 @@ use std::{
     path::PathBuf,
 };
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Profile {
-    config: ProfileConfig,
-    pub loader: Option<Loader>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProfileConfig {
     /// the name of the profile
-    name: String,
+    pub name: String,
 
     /// the author associated with the modpack
-    author: String,
+    pub author: String,
 
     /// the current version of the modpack
-    version: String,
+    pub version: String,
 
     /// a short summary of the modpack
-    summary: Option<String>,
+    pub summary: Option<String>,
 
     /// versions associated with the profile
-    versions: ProfileVersions,
+    pub versions: ProfileVersions,
+
+    #[serde(skip)]
+    pub loader: Loader,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ProfileVersions {
     pub minecraft: String,
     pub forge: Option<String>,
     pub fabric: Option<String>,
     pub quilt: Option<String>,
+}
+
+impl ProfileVersions {
+    pub fn get_version(&self, loader: Option<Loader>) -> String {
+        match loader {
+            Some(Loader::Forge) => self.forge.clone().unwrap(),
+            Some(Loader::Fabric) => self.fabric.clone().unwrap(),
+            Some(Loader::Quilt) => self.quilt.clone().unwrap(),
+            _ => self.minecraft.clone(),
+        }
+    }
 }
 
 /// find the path to the profile directory
@@ -51,61 +59,62 @@ fn profile_directory(slug: Option<&str>) -> PathBuf {
 }
 
 /// figure out which loader is used by the profile's versions
-fn resolve_loader(versions: &ProfileVersions) -> Option<Loader> {
+fn resolve_loader(versions: &ProfileVersions) -> Loader {
     if versions.fabric.is_some() {
-        Some(Loader::Fabric)
+        Loader::Fabric
     } else if versions.forge.is_some() {
-        Some(Loader::Forge)
+        Loader::Forge
     } else if versions.quilt.is_some() {
-        Some(Loader::Quilt)
+        Loader::Quilt
     } else {
-        None
+        Loader::Unknown
     }
 }
 
 impl Profile {
     /// create a new profile
-    pub fn create(config: ProfileConfig) -> io::Result<Self> {
+    pub fn create(
+        name: String,
+        author: String,
+        version: String,
+        summary: Option<String>,
+        versions: ProfileVersions,
+    ) -> io::Result<Self> {
         // ensure that the profile has a directory
-        let path = profile_directory(Some(&create_slug(&config.name)));
+        let path = profile_directory(Some(&create_slug(&name)));
 
         if !path.exists() {
             fs::create_dir_all(path.join("mods"))?;
         }
 
+        // todo: create git repository
+
+        // create the profile
+        let profile = Self {
+            name,
+            author,
+            version,
+            summary,
+            loader: resolve_loader(&versions),
+            versions,
+        };
+
         // create the profile.toml file
-        let toml_content = toml::to_string(&config).expect("failed to serialize profile config");
+        let toml_content = toml::to_string(&profile).expect("failed to serialize profile config");
 
         fs::File::create(path)?.write_all(toml_content.as_bytes())?;
 
-        // resolve the loader
-        let loader = resolve_loader(&config.versions);
-
-        // todo: create git repository
-
-        Ok(Self { config, loader })
+        Ok(profile)
     }
 
     /// load a profile from a directory
-    pub fn load(path: PathBuf) -> io::Result<Self> {
-        // parse config
-        let config =
-            toml::from_str::<ProfileConfig>(&fs::read_to_string(path.join("profile.toml"))?)
-                .expect("failed to parse profile.toml");
+    pub fn load(path: PathBuf) -> Result<Self, toml::de::Error> {
+        let mut profile = toml::from_str::<Profile>(
+            &fs::read_to_string(path.join("profile.toml")).expect("failed to read profile.toml"),
+        )?;
 
-        // resolve loader
-        let loader = resolve_loader(&config.versions);
+        profile.loader = resolve_loader(&profile.versions);
 
-        Ok(Self { config, loader })
-    }
-
-    /// get the name of the profile
-    pub fn name(&self) -> String {
-        self.config.name.clone()
-    }
-
-    /// get the author of the profile
-    pub fn author(&self) -> String {
-        self.config.author.clone()
+        Ok(profile)
     }
 }
