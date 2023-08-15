@@ -77,8 +77,8 @@ impl Profile {
         name: String,
         author: String,
         version: String,
-        summary: Option<String>,
         versions: ProfileVersions,
+        summary: Option<String>,
     ) -> io::Result<Self> {
         // ensure that the profile has a directory
         let path = profile_directory(Some(&create_slug(&name)));

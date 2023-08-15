@@ -6,4 +6,6 @@ pub enum Views {
     SelectProfile,
     /// view profile screen
     ViewProfile,
+    /// create profile screen
+    CreateProfile,
 }

@@ -1,53 +1,88 @@
-use crossterm::event::{self, Event, KeyCode};
+use backtrace::Backtrace;
+use color_eyre::eyre::Result;
+use crossterm::event::{self, Event};
 use crossterm::execute;
+use crossterm::style::Print;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use modman::views::*;
 use modman::App;
 use ratatui::backend::CrosstermBackend;
-use std::error::Error;
-use std::io::{self, Stdout};
+use ratatui::layout::Rect;
+use std::io::{self};
+use std::panic::{self, PanicInfo};
 use std::time::Duration;
 use std::time::Instant;
+use tui_textarea::{Input, Key};
 
 const TICK_RATE: Duration = Duration::from_millis(250);
 
-struct Terminal(ratatui::Terminal<CrosstermBackend<Stdout>>);
+fn close_application() -> Result<()> {
+    disable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, LeaveAlternateScreen)?;
+    Ok(())
+}
 
-impl Drop for Terminal {
-    fn drop(&mut self) {
-        disable_raw_mode()
-            .and(execute!(self.0.backend_mut(), LeaveAlternateScreen))
-            .and(self.0.show_cursor())
-            .unwrap();
+fn panic_hook(info: &PanicInfo<'_>) {
+    if cfg!(debug_assertions) {
+        let location = info.location().unwrap();
+
+        let msg = match info.payload().downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<Any>",
+            },
+        };
+
+        let stacktrace: String = format!("{:?}", Backtrace::new()).replace('\n', "\n\r");
+
+        disable_raw_mode().unwrap();
+        execute!(
+            io::stdout(),
+            LeaveAlternateScreen,
+            Print(format!(
+                "thread '<unnamed>' panicked at '{}', {}\n\r{}",
+                msg, location, stacktrace
+            )),
+        )
+        .unwrap();
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    panic::set_hook(Box::new(panic_hook));
+
     let mut stdout = io::stdout();
-    let mut terminal = Terminal(
-        enable_raw_mode()
-            .and(execute!(stdout, EnterAlternateScreen))
-            .and(ratatui::Terminal::new(CrosstermBackend::new(stdout)))
-            .unwrap(),
-    );
+    let mut terminal = enable_raw_mode()
+        .and(execute!(stdout, EnterAlternateScreen))
+        .and(ratatui::Terminal::new(CrosstermBackend::new(stdout)))
+        .unwrap();
 
     // states
     let mut app = App::default();
     let mut select_profile_state = profile::select::State::default();
     let mut view_profile_state = profile::view::State::default();
+    let mut create_profile_state = profile::create::State::default();
 
     let mut last_tick = Instant::now();
+    let mut frame_size = Rect::default();
 
     loop {
         // draw view
-        terminal.0.draw(|f| match app.view {
-            Views::SelectProfile => profile::select::draw(f, &app, &select_profile_state),
-            Views::ViewProfile => profile::view::draw(f, &app, &view_profile_state),
+        terminal.draw(|frame| {
+            frame_size = frame.size();
 
-            #[allow(unreachable_patterns)]
-            _ => unimplemented!(),
+            match app.view {
+                Views::SelectProfile => {
+                    profile::select::draw(frame, &app, &mut select_profile_state)
+                }
+                Views::ViewProfile => profile::view::draw(frame, &app, &view_profile_state),
+                Views::CreateProfile => profile::create::draw(frame, &app, &create_profile_state),
+            }
         })?;
 
         // delta time
@@ -58,22 +93,27 @@ fn main() -> Result<(), Box<dyn Error>> {
         // handle input
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
+                let input: Input = key.into();
+
                 // default keybinds
-                if let KeyCode::Esc = key.code {
-                    return Ok(());
+                if let Key::Esc = input.key {
+                    break;
                 }
 
                 // view specific keybinds
                 match app.view {
-                    Views::SelectProfile => {
-                        profile::select::controls(key.code, &mut app, &mut select_profile_state)
-                    }
+                    Views::SelectProfile => profile::select::controls(
+                        input,
+                        &mut app,
+                        &mut select_profile_state,
+                        &frame_size,
+                    ),
                     Views::ViewProfile => {
-                        profile::view::controls(key.code, &mut app, &mut view_profile_state)
+                        profile::view::controls(input, &mut app, &mut view_profile_state)
                     }
-
-                    #[allow(unreachable_patterns)]
-                    _ => {}
+                    Views::CreateProfile => {
+                        profile::create::controls(input, &mut app, &mut create_profile_state)
+                    }
                 }
             }
         }
@@ -82,4 +122,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             last_tick = Instant::now();
         }
     }
+
+    close_application()
 }

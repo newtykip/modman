@@ -1,0 +1,19 @@
+{
+	"generate": {
+		"description": "Generate a view",
+		"scope": "rust",
+		"prefix": "view",
+		"body": [
+			"use crate::prelude::*;",
+			"",
+			"#[derive(Default)]",
+			"pub struct State {}",
+			"",
+			"pub fn draw<B: Backend>(frame: &mut Frame<B>, app: &App, _state: &State) {",
+			"    todo!()",
+			"}",
+			"",
+			"pub fn controls(_input: Input, _app: &mut App, _state: &mut State) {}"
+		]
+	}
+}

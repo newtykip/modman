@@ -1,19 +1,7 @@
-use crossterm::event::KeyCode;
-use ratatui::{
-    backend::Backend,
-    layout::{Alignment, Constraint, Direction, Layout},
-    style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::Paragraph,
-    Frame,
-};
-
-use crate::App;
+use crate::prelude::*;
 
 #[derive(Default)]
-pub struct State {
-    index: u8,
-}
+pub struct State {}
 
 // todo: properly implement
 pub fn draw<B: Backend>(frame: &mut Frame<B>, app: &App, _state: &State) {
@@ -49,8 +37,11 @@ pub fn draw<B: Backend>(frame: &mut Frame<B>, app: &App, _state: &State) {
     frame.render_widget(header, chunks[0]);
 }
 
-pub fn controls(key_code: KeyCode, _app: &mut App, _state: &mut State) {
-    match key_code {
+pub fn controls(input: Input, app: &mut App, _state: &mut State) {
+    match input.key {
+        Key::Backspace => {
+            app.view = Views::SelectProfile;
+        }
         _ => {}
     }
 }
