@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+	body {
+		@apply bg-gradient-to-b from-slate-800 via-slate-800 to-slate-800 select-none cursor-default;
+	}
+
+	.btn {
+		@apply bg-button hover:bg-button-hover duration-200 text-white cursor-pointer;
+	}
+}
+
+@font-face  {
+	font-family: "Warming";
+	src: url("/fonts/Warming-Black.ttf");
+	font-weight: 900;
+}

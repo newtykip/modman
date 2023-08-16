@@ -1,0 +1,24 @@
+{
+	// formatting
+	"[rust]": {
+		"editor.defaultFormatter": "rust-lang.rust-analyzer",
+		"editor.formatOnSave": true
+	},
+	"[svelte]": {
+		"editor.defaultFormatter": "svelte.svelte-vscode",
+		"editor.formatOnSave": true
+	},
+
+	// make rust analyzer work
+	"rust-analyzer.linkedProjects": ["./src-tauri/Cargo.toml"],
+
+	// hide boring files
+	"files.exclude": {
+		// "node_modules": true,
+		"build": true,
+		".svelte-kit": true,
+		"pnpm-lock.yaml": true,
+		"src-tauri/Cargo.lock": true,
+		".npmrc": true
+	}
+}
