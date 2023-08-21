@@ -28,8 +28,8 @@ async fn main() {
             window_shadows::set_shadow(&window, true).unwrap();
         }
 
-        // ensure profiles directory exists
-        create_dir_all(MODMAN_DIR.join("profiles"))?;
+        // ensure modman directory exists
+        create_dir_all(MODMAN_DIR.clone())?;
 
         Ok(())
     });

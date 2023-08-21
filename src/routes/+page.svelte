@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { loadProfiles } from "$lib/bindings";
+	import { loadProfiles, saveProfile } from "$lib/bindings";
 	import Profile from "./Profile.svelte";
 	import { onMount } from "svelte";
 	import Meta from "$components/Meta.svelte";

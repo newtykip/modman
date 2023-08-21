@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { goto } from "$app/navigation";
 	import { createSlug, type Profile } from "$lib/bindings";
+	import { loaderToString } from "$lib/loader";
 
 	export let profile: Profile;
 	export let number: number;
 
-	let { loader } = profile;
+	let loader = loaderToString(profile.loader);
 
 	const view = async () => {
 		goto(`/view/${await createSlug(profile.name)}`);
@@ -19,7 +20,7 @@
 	<div
 		class="w-full h-full bg-black/75 backdrop-brightness-20 absolute top-0 flex flex-col items-center justify-center text-white rounded-sm profile"
 	>
-		<p class="absolute top-1 right-2 text-xs text-gray-300">{profile.minecraftVersion}</p>
+		<p class="absolute top-1 right-2 text-xs text-gray-300">{profile.minecraft_version}</p>
 		<p class="text-2xl font-bold">{profile.name}</p>
 		<p class="text-lg">by {profile.author}</p>
 	</div>

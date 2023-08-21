@@ -2,7 +2,7 @@
 	import Loading from "$components/Loading.svelte";
 	import Meta from "$components/Meta.svelte";
 	import { getProfile } from "$lib/bindings";
-	import title from "title";
+	import { loaderToString } from "$lib/loader";
 
 	export let data: ReturnType<typeof import("$routes/view/[slug]/+page").load>;
 </script>
@@ -22,24 +22,18 @@
 		</div>
 		<div class="text-xl text-right">
 			<p>
-				<img
-					src={`/images/grass.webp`}
-					alt={profile.loader}
-					class="inline"
-					height={25}
-					width={25}
-				/>
-				{profile.minecraftVersion}
+				<img src={`/images/grass.webp`} alt="minecraft" class="inline" height={25} width={25} />
+				{profile.minecraft_version}
 			</p>
 			<p>
 				<img
-					src={`/images/loaders/${profile.loader}.png`}
-					alt={profile.loader}
+					src={`/images/loaders/${loaderToString(profile.loader)}.png`}
+					alt={loaderToString(profile.loader)}
 					class="inline"
 					height={25}
 					width={25}
 				/>
-				{profile.loaderVersion}
+				{profile.loader_version}
 			</p>
 		</div>
 	</div>

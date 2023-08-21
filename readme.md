@@ -2,6 +2,8 @@
 
 an alternative to [packwiz](https://github.com/packwiz/packwiz), with a gui! in development, do not expect it to be production ready for some time yet!
 
+requires [protoc](https://github.com/protocolbuffers/protobuf#protocol-compiler-installation) to be installed on your system during development. [just](https://github.com/casey/just) tasks are provided for your convenience.
+
 ### supported mod loaders
 
 <table>
