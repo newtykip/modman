@@ -9,6 +9,7 @@ pub enum Loader {
     Forge = 0,
     Fabric = 1,
     Quilt = 2,
+    Neoforge = 3,
 }
 
 #[derive(Serialize, Deserialize, Message, Type)]

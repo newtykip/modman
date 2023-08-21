@@ -2,6 +2,7 @@ export enum Loader {
 	Forge = 0,
 	Fabric = 1,
 	Quilt = 2,
+	Neoforge = 3,
 }
 
 export function loaderToString(loader: Loader) {
@@ -12,5 +13,7 @@ export function loaderToString(loader: Loader) {
 			return 'fabric';
 		case Loader.Quilt:
 			return 'quilt';
+		case Loader.Neoforge:
+			return 'neoforge';
 	}
 }
