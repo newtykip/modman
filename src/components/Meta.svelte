@@ -2,7 +2,7 @@
 	import * as stores from "$stores";
 
 	export let title: string;
-	export let back: boolean = false;
+	export let back: boolean = true;
 
 	stores.title.set(title);
 	stores.back.set(back);

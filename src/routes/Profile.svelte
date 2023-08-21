@@ -5,14 +5,17 @@
 	export let profile: Profile;
 	export let number: number;
 
+	let { loader } = profile;
+
 	const view = async () => {
 		goto(`/view/${await createSlug(profile.name)}`);
 	};
 </script>
 
+<!-- todo: scale on hover -->
 <div class="relative hover:cursor-pointer shadow-lg w-[210px] h-[120px]">
 	<!-- todo: custom profile image -->
-	<img src={`${profile.loader}.png`} class="h-full w-full object-cover" alt="" />
+	<img src={`/images/loaders/${loader}.png`} class="h-full w-full object-cover" alt={loader} />
 	<div
 		class="w-full h-full bg-black/75 backdrop-brightness-20 absolute top-0 flex flex-col items-center justify-center text-white rounded-sm profile"
 	>

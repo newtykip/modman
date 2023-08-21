@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,13 +7,16 @@
 		@apply bg-gradient-to-b from-slate-800 via-slate-800 to-slate-800 select-none cursor-default text-white;
 	}
 
+	img {
+		@apply pointer-events-none;
+	}
+
 	.btn {
 		@apply bg-button hover:bg-button-hover duration-200 text-white cursor-pointer;
 	}
 }
 
-@font-face  {
-	font-family: "Warming";
-	src: url("/fonts/Warming-Black.ttf");
-	font-weight: 900;
+@font-face {
+	font-family: "Karla";
+	src: url("/fonts/Karla-Variable.ttf");
 }

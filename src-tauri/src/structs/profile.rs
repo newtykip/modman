@@ -22,15 +22,13 @@ pub struct Profile {
     /// the current version of the modpack
     pub version: String,
 
-    /// a short summary of the modpack
-    pub summary: Option<String>,
-
     /// The version of Minecraft the profile is for
     pub minecraft_version: String,
 
     /// The loader to use for the profile
     pub loader: Loader,
 
+    /// The version of the loader to use for the profile
     pub loader_version: String,
 }
 

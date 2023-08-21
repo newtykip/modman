@@ -12,8 +12,10 @@
 		"@sveltejs/adapter-auto": "^2.0.0",
 		"@sveltejs/adapter-static": "1.0.0-next.50",
 		"@sveltejs/kit": "^1.20.4",
+		"@tailwindcss/forms": "^0.5.4",
 		"@tauri-apps/cli": "^1.4.0",
 		"@types/lodash.chunk": "^4.2.7",
+		"@types/title": "^3.4.1",
 		"autoprefixer": "^10.4.14",
 		"postcss": "^8.4.24",
 		"postcss-load-config": "^4.0.1",
@@ -30,6 +32,7 @@
 	"type": "module",
 	"dependencies": {
 		"@tauri-apps/api": "^1.4.0",
-		"lodash.chunk": "^4.2.0"
+		"title": "^3.5.3",
+		"xml-js": "^1.6.11"
 	}
 }

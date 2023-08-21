@@ -1,29 +1,33 @@
-const defaultTheme = require('tailwindcss/defaultTheme');
+const defaultTheme = require("tailwindcss/defaultTheme");
 
-/** @type {import('tailwindcss').Config}*/
+/** @type {import("tailwindcss").Config}*/
 const config = {
 	content: ["./src/**/*.{html,js,svelte,ts}"],
 
 	safelist: [
 		{
 			pattern: /^grid-cols-\d+$/
+		},
+		{
+			pattern: /^bg-.*$/
 		}
 	],
 
 	theme: {
 		extend: {
 			fontFamily: {
-				sans: ['Inter', ...defaultTheme.fontFamily.sans],
-				warming: ['Warming']
+				sans: ["Karla", ...defaultTheme.fontFamily.sans]
 			},
 			colors: {
-				titlebar: '#050818',
-				'titlebar-highlight': '#1b2533'
+				titlebar: "#050818",
+				"titlebar-highlight": "#1b2533"
 			}
 		}
 	},
 
-	plugins: [],
+	plugins: [
+		require('@tailwindcss/forms')
+	],
 };
 
 module.exports = config;
