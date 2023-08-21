@@ -13,7 +13,7 @@ mod commands;
 #[tokio::main]
 async fn main() {
     ts::export(
-        collect_types![save_profile, load_profiles],
+        collect_types![create_slug, save_profile, load_profiles, get_profile],
         "../src/lib/bindings.ts",
     )
     .unwrap();
@@ -34,7 +34,7 @@ async fn main() {
 
             Ok(())
         })
-        .invoke_handler(generate_handler![save_profile, load_profiles])
+        .invoke_handler(generate_handler![create_slug, save_profile, load_profiles, get_profile])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

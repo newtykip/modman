@@ -1,4 +1,5 @@
-use modman::{create_slug, structs::Profile, MODMAN_DIR};
+use super::create_slug;
+use modman::{structs::Profile, MODMAN_DIR};
 use std::{fs, io::Write};
 
 #[tauri::command]
@@ -28,4 +29,11 @@ pub fn load_profiles() -> Vec<Profile> {
         .map(Profile::load)
         .filter_map(|profile| profile.ok())
         .collect::<Vec<_>>()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_profile(slug: &str) -> Profile {
+    // this should never fail, because we only call it on slugs that we know exist
+    Profile::load(MODMAN_DIR.join("profiles").join(slug)).unwrap()
 }

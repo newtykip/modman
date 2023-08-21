@@ -11,6 +11,7 @@ pub enum Loader {
 }
 
 #[derive(Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct Profile {
     /// the name of the profile
     pub name: String,

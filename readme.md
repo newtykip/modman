@@ -19,9 +19,8 @@ an alternative to [packwiz](https://github.com/packwiz/packwiz), with a gui! in 
 
 ### todos
 
-- create logos
 - custom profile icons
-- support liteloader
-- get an actual image for the new profile button
+- support more loaders (i.e liteloader)
 - light mode
 - nice scrollbar
+- click through titlebar

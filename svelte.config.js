@@ -9,6 +9,8 @@ const config = {
 		adapter: adapter(),
 		alias: {
 			"$components": "./src/components",
+			"$routes": "./src/routes",
+			"$stores": "./src/stores.ts"
 		},
 	},
 };
